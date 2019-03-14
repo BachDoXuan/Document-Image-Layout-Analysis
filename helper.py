@@ -74,19 +74,20 @@ def maybe_download_mobilenet_weights(alpha_text='1_0', rows=224):
     return weight_path
 
 
-def gen_batches_functions(data_folder, image_shape,
-                          train_augmentation_fn=None,
-                          val_augmentation_fn=None):
+def gen_batches_function(data_folder, image_shape,
+                          train_augmentation_fn=None):
     """
     Generate function to create batches of training data
-    :param data_folder: Path to folder that contains all the datasets
+    :param data_folder: Path to folder that contains images and labels 
+        for train/val/test datasets
     :param image_shape: Tuple - Shape of image
     :return:
     """
-    image_paths = sorted(
-        glob(os.path.join(data_folder, 'image_2', '*.png')))[:]
-    train_paths, val_paths = train_test_split(
-        image_paths, test_size=0.1, random_state=21)
+#    image_paths = sorted(
+#        glob(os.path.join(data_folder, 'images', '*.jpg')))[:]
+#    train_paths, val_paths = train_test_split(
+#        image_paths, test_size=0.1, random_state=21)
+    image_paths = glob(os.path.join(data_folder, 'images', '*.jpg'))
 
     def get_batches_fn(batch_size, image_paths, augmentation_fn=None):
         """
@@ -94,11 +95,12 @@ def gen_batches_functions(data_folder, image_shape,
         :param batch_size: Batch Size
         :return: Batches of training data
         """
-        label_fns = glob(os.path.join(
-            data_folder, 'gt_image_2', '*_road_*.png'))
-        label_paths = {
-            re.sub(r'_(lane|road)_', '_', os.path.basename(path)): path
-            for path in label_fns}
+#        label_fns = glob(os.path.join(
+#            data_folder, 'gt_image_2', '*_road_*.png'))
+#        label_paths = {
+#            re.sub(r'_(lane|road)_', '_', os.path.basename(path)): path
+#            for path in label_fns}
+        label_paths = glob(os.path.join(data_folder, 'labels', '*.jpg'))
 
         background_color = np.array([255, 0, 0])
         random.shuffle(image_paths)

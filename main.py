@@ -132,13 +132,14 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     n_epochs = params["training_params"]["n_epochs"]
     batch_size = params["training_params"]["batch_size"]
     image_shape = params["image_shape"]
+    n_classes = params["model_params"]["n_classes"]
     
     # SET UP TRAIN DATA, VAL DATA
     train_batches_fn = helper.gen_batches_function(
-            params["train_data"], image_shape,
+            params["train_data"], image_shape, n_classes, 
             train_augmentation_fn = augmentation_fn)
     val_batches_fn = helper.gen_batches_function(
-            params["eval_data"], image_shape)
+            params["eval_data"], image_shape, n_classes)
     
     # Create writers for training step and evaluation step
     # TODO: Write time stamp into log directory

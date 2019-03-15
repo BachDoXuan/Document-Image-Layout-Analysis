@@ -13,7 +13,7 @@ import numpy as np
 #from IPython import embed
 from augmentation import rotate_both, flip_both, blur_both, illumination_change_both  # noqa
 from dhSegment.network.model import inference_resnet_v1_50
-#from dhSegment.utils import ModelParams, TrainingParams
+from dhSegment.utils import ModelParams, TrainingParams
 
 # https://keras.io/backend/
 #KERAS_TRAIN = 1
@@ -45,8 +45,11 @@ def build_estimator(logits, correct_labels, params):
     :return: Tuple of (logits, train_op, loss)
     """    
     # EXTRACT PARAMS 
-    model_params = params['model_params']
-    training_params = params['training_params']   
+    model_params = ModelParams(**params['model_params'])
+    training_params = TrainingParams.from_dict(params['training_params'])
+#    model_params = params['model_params']
+#    training_params = params['training_params']   
+    
     # BUILD PREDICTION OP 
     #   (FOR PREDICTION PHASE AND INFERENCE PHASE - REAL PRODUCTION)
     prediction_probs = tf.nn.softmax(logits, name='softmax')
@@ -115,53 +118,62 @@ def build_estimator(logits, correct_labels, params):
 
 
 def train_and_evaluate(sess, input_images, correct_labels, training,
-                       train_batches_fn, val_batches_fn, train_op, 
-                       loss, metrics, params, summary,
-                       loss_summary, iou_summary, 
-                       writer_train, writer_val, global_step):
+                       predict_op, train_op, loss, metrics, global_step,
+                       loss_summary, iou_summary, summary, params):
     """
-    Train and evaluate model
-    :param sess: TF Session
-    :param input_images: 
-    :param correct_labels:
-    :param training:
-    :param train_batches_fn:
-    :param val_batches_fn:
-    :param train_op:
-    :param loss:
-    :param metrics:
-    :param params:
-    :param summary:
+    Train, evaluate model, output to console, output to disk for tensorboard
+    and save checkpoints for future training and production.
+    :param 
     """
-    # Initialization
+    # Set up parameters (configuration)
     iou = metrics["iou"]
     iou_op = metrics["iou_op"]
     iou_metric_reset_ops = metrics["iou_metric_reset"]
     n_epochs = params["training_params"]["n_epochs"]
     batch_size = params["training_params"]["batch_size"]
+    image_shape = params["image_shape"]
     
-#    writer = tf.summary.FileWriter('./logs', graph=sess.graph)
-
-    epoch_pbar = tqdm(range(n_epochs))
+    # SET UP TRAIN DATA, VAL DATA
+    train_batches_fn = helper.gen_batches_function(
+            params["train_data"], image_shape,
+            train_augmentation_fn = augmentation_fn)
+    val_batches_fn = helper.gen_batches_function(
+            params["eval_data"], image_shape)
+    
+    # Create writers for training step and evaluation step
+    # TODO: Write time stamp into log directory
+    # TODO: Create directories (in disk/memory) for each time running code
+    writer_train = tf.summary.FileWriter('./logs/train', graph=sess.graph)
+    writer_val = tf.summary.FileWriter('./logs/val')
+    
+    # Train and evaluate loop
+    epoch_pbar = tqdm(range(n_epochs)) # to see the progress
     for epoch in epoch_pbar:
-        # training ...
+        # 1. TRAIN STEP
+        # to calculate mIoU accuracy for each epoch
         sess.run(iou_metric_reset_ops)
         train_loss = 0.0
-        iteration_counter = 0
-        for images, labels in train_batches_fn(batch_size):
+        num_batches = 0
+        for images, labels in train_batches_fn(batch_size): 
+            # TODO calculate global step / second (time)
             loss_val, global_step_val, _ = \
                     sess.run([loss, global_step, train_op, iou_op], 
                              feed_dict= {input_images: images,
                                          correct_labels: labels,
                                          training: True}
                              )
+            # output to console
+            epoch_pbar.write(
+                "Epoch %03d: global_step %10d: train_loss: %.4f"
+                % (epoch, global_step_val, loss_val)
+                )
             train_loss += loss_val
-            iteration_counter += 1
+            num_batches += 1
 
         train_iou = sess.run(iou)
-        train_loss /= iteration_counter
+        train_loss /= num_batches
         
-        # computing summary
+        # compute summary and output to disk/memory
         summary_val = sess.run(
                         summary, feed_dict={loss_summary: train_loss,
                                             iou_summary: train_iou}
@@ -169,11 +181,12 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         writer_train.add_summary(summary_val, global_step_val)
         writer_train.flush()
  
-        # evaluating ...
-        sess.run(iou_metric_reset_ops)
+        # 2. EVALUATE STEP
+        # to calculate mIoU accuracy for each epoch
+        sess.run(iou_metric_reset_ops)  
         val_loss = 0.0
-        iteration_counter = 0
-        for image, label in val_batches_fn(batch_size):
+        num_batches = 0
+        for images, labels in val_batches_fn(batch_size):
             loss_val, _ = sess.run([loss, iou_op], 
                                    feed_dict= {
                                            input_images: images,
@@ -182,12 +195,12 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                            }
                                    )
             val_loss += loss_val
-            iteration_counter += 1
+            num_batches += 1
 
         val_iou = sess.run(iou)
-        val_loss /= iteration_counter
+        val_loss /= num_batches
         
-        # computing summary
+        # compute summary and output to disk/memory
         summary_val = sess.run(
                         summary, feed_dict={loss_summary: val_loss,
                                             iou_summary: val_iou}
@@ -195,16 +208,18 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         writer_val.add_summary(summary_val, global_step_val)
         writer_val.flush()
         
+        # output to console
         epoch_pbar.write(
             "Epoch %03d: loss: %.4f mIoU: %.4f val_loss: %.4f val_mIoU: %.4f"
             % (epoch, train_loss, train_iou, val_loss, val_iou)
             )
-       
-        # saving checkpoints
-        if epoch % 2 == 0:
-            weight_path = 'checkpoint/ep-%03d-val_loss-%.4f.hdf5' \
-                          % (epoch, val_loss)
-            model.save_weights(weight_path)
+        
+        # TODO WRITE SUMMARY IMAGE, LABEL, PREDICTION TO DISPLAY IN TENSORBOARD
+        # use data from train dataset
+        
+        # TODO SAVE CHECKPOINT: save latest or highest val meanIoU?
+        # -- save both
+
 
 
 def augmentation_fn(image, label):
@@ -221,6 +236,8 @@ def augmentation_fn(image, label):
 
 # tests.test_train_nn(train_nn)
 def run():
+    # TODO: monitor params (config) and save them using sacred library
+    # TODO: load params from a separate file
     params = {
             "classes_file": "data/pages/classes.txt",
             "eval_data": "data/pages/val",
@@ -237,7 +254,8 @@ def run():
                     "pretrained_model_name": "resnet50",
                     "selected_levels_upscaling": [True, True, True, True, True],
                     "upscale_params": [[32, 0], [64, 0], [128, 0], [256, 0], [512, 0]],
-                    "weight_decay": 1e-06},
+                    "weight_decay": 1e-06
+                    },
             "prediction_type": "CLASSIFICATION",
             "pretrained_model_name": "resnet50",
             "restore_model": False,
@@ -275,7 +293,9 @@ def run():
     # 1. Set up params' values (configuration) from dictionary params
     image_shape = params["image_shape"]
     num_classes = params["model_params"]["n_classes"]
-    model_params = params['model_params']
+    model_params = ModelParams(**params['model_params'])
+#    training_params = TrainingParams.from_dict(params['training_params'])
+#    model_params = params['model_params']
 #    training_params = params['training_params']
     
     # 2. Create input tensor for computation graphs
@@ -292,12 +312,12 @@ def run():
     
     # 3. Build computation graph
     logits = inference_resnet_v1_50(input_images,
-                                            model_params,
-                                            model_params.n_classes,
-                                            use_batch_norm=model_params.batch_norm,
-                                            weight_decay=model_params.weight_decay,
-                                            is_training=training
-                                            )
+                                    model_params,
+                                    model_params.n_classes,
+                                    use_batch_norm=model_params.batch_norm,
+                                    weight_decay=model_params.weight_decay,
+                                    is_training=training
+                                    )
     predict_op, train_op, loss, metrics, global_step = \
             build_estimator(logits, correct_labels, params)
     
@@ -312,14 +332,9 @@ def run():
     ### CREATE AND RUN SESSION #######
     ##################################
 
-    with tf.Session() as sess:         
-        # 1. SET UP TRAIN DATA, VAL DATA, AND TEST DATA
-        train_batches_fn = helper.gen_batches_function(
-                params["train_data"], image_shape,
-                train_augmentation_fn = augmentation_fn)
-        val_batches_fn = helper.gen_batches_function(
-                params["eval_data"], image_shape)
-
+    with tf.Session() as sess:        
+        # TODO: load back checkpoint to continue training and evaluating
+        
         # INITIALIZE ALL VARIABLES
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
@@ -332,22 +347,20 @@ def run():
         pretrained_restorer.restore(sess, model_params.pretrained_model_file)
         
         
-        # 2. TRAIN AND EVALUATE LEARNING MODEL
-        writer_train = tf.summary.FileWriter('./logs/train', graph=sess.graph)
-        writer_val = tf.summary.FileWriter('./logs/val')
+        # TRAIN AND EVALUATE LEARNING MODEL
         train_and_evaluate(sess, input_images, correct_labels, training,
-                           train_batches_fn, val_batches_fn,
                            train_op, loss, metrics, params, summary,
-                           loss_summary, iou_summary, 
-                           writer_train, writer_val, global_step)
+                           loss_summary, iou_summary, global_step
+                           )
         
-        # 3. USING THE TRAINED MODEL TO PREDICT TEST SET
-        helper.save_inference_samples(
-            runs_dir, data_dir, sess, image_shape,
-            logits, training, input_images)
-        # OPTIONAL: Apply the trained model to a video
+        # TODO: load back the checkpoint that is good for production and
+        # export it as a savedmodel for production -- separate file
+        
+        # TODO: load back the saved model (computation graph with 
+        # weights/variables) and predict on test data or user's data 
+        # -- separate file
+        
 
-        # 4. 
 
 if __name__ == '__main__':
     run()

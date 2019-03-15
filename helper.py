@@ -1,7 +1,7 @@
 import re
 import random
 import numpy as np
-import os.path
+import os
 import scipy.misc
 import shutil
 import zipfile
@@ -13,6 +13,7 @@ from keras.utils import get_file
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from IPython import embed
+import cv2
 
 
 class DLProgress(tqdm):
@@ -73,64 +74,82 @@ def maybe_download_mobilenet_weights(alpha_text='1_0', rows=224):
                            cache_subdir='models')
     return weight_path
 
-
-def gen_batches_function(data_folder, image_shape,
-                          train_augmentation_fn=None):
+# TODO: rewrite gen_batches_function to generate batches of images and labels
+# to train and evaluate
+def gen_batches_function(data_dir, image_shape, n_classes, 
+                         augmentation_fn=None):
     """
-    Generate function to create batches of training data
-    :param data_folder: Path to folder that contains images and labels 
+    Generate function to create batches of training data.
+    Description of images and labels: must be array of type int
+    images is of [height, width, 3] shape
+    labels are of [height, width] shape 
+        
+    :param data_dir: Path to folder that contains images and labels 
         for train/val/test datasets
     :param image_shape: Tuple - Shape of image
     :return:
     """
-#    image_paths = sorted(
-#        glob(os.path.join(data_folder, 'images', '*.jpg')))[:]
-#    train_paths, val_paths = train_test_split(
-#        image_paths, test_size=0.1, random_state=21)
-    image_paths = glob(os.path.join(data_folder, 'images', '*.jpg'))
-
-    def get_batches_fn(batch_size, image_paths, augmentation_fn=None):
+    assert os.path.isdir(data_dir), \
+        data_dir + " is not a valid directory" 
+    image_paths = glob(os.path.join(data_dir, 'images', '*.jpg'))
+    image_filenames = os.listdir(os.path.join(data_dir, 'images'))
+    assert len(image_paths) == len(image_filenames), \
+        data_dir + " contains non-jpg files"
+#    label_paths = glob(os.path.join(data_folder, 'labels', '*.jpg'))
+#    assert len(image_paths) == len(label_paths), \
+#        "The numbers of images and labels are not equal"
+        
+    def get_batches_fn(batch_size):
         """
         Create batches of training data
         :param batch_size: Batch Size
         :return: Batches of training data
         """
-#        label_fns = glob(os.path.join(
-#            data_folder, 'gt_image_2', '*_road_*.png'))
-#        label_paths = {
-#            re.sub(r'_(lane|road)_', '_', os.path.basename(path)): path
-#            for path in label_fns}
-        label_paths = glob(os.path.join(data_folder, 'labels', '*.jpg'))
+        random.shuffle(image_filenames) # shuffle images' order for each epoch
 
-        background_color = np.array([255, 0, 0])
-        random.shuffle(image_paths)
-        for batch_i in range(0, len(image_paths), batch_size):
+        for i in range(0, len(image_filenames), batch_size):
             images = []
-            gt_images = []
-            for image_file in image_paths[batch_i:batch_i + batch_size]:
-                gt_image_file = label_paths[os.path.basename(image_file)]
-
-                image = scipy.misc.imresize(
-                    scipy.misc.imread(image_file, mode='RGB'), image_shape)
-
-                gt_image = scipy.misc.imresize(
-                    scipy.misc.imread(gt_image_file), image_shape)
-
-                gt_bg = np.all(gt_image == background_color, axis=2)
+            labels = []
+            
+            for image_filename in image_filenames[i : i + batch_size]:
+                image_path = os.path.join(data_dir, 'images', image_filename)
+                label_path = os.path.join(data_dir, 'labels', image_filename)
+                
+                if not (os.path.isfile(image_path) 
+                        and os.path.isfile(image_path)
+                        ):
+                    raise ("image or label does not exist")
+                
+                # cv2: In the case of color images, the decoded images will 
+                #       have the channels stored in B G R order.
+                image = cv2.imread(image_path)
+                label = cv2.imread(label_path)
+                assert (image.shape[0] == label.shape[0] and \
+                        image.shape[1] == label.shape[1]), \
+                        "image and label are not of the same shape"
+                
+                # TODO: rewrite augmentation_fn
                 if augmentation_fn:
-                    image, gt_bg = augmentation_fn(image, gt_bg)
-
-                gt_bg = gt_bg.reshape(*gt_bg.shape, 1)
-                gt_image = np.concatenate((gt_bg, np.invert(gt_bg)), axis=2)
+                    image, label = augmentation_fn(image, label)
+                
+        
+                # resize images
+                image = cv2.resize(image, (image_shape[1], image_shape[0], 3),
+                                   interpolation = cv2.INTER_LINEAR)
+                label = cv2.resize(label, (image_shape[1], image_shape[0]),
+                                   interpolation = cv2.INTER_NEAREST)
+                
+                # convert label into one-hot type
+                class_eye = np.eye(n_classes, dtype = np.uint8)
+                label = class_eye[label, :]
+                
+                # append to batch
                 images.append(image)
-                gt_images.append(gt_image)
+                labels.append(label)
 
-            yield np.array(images) / 127.5 - 1.0, np.array(gt_images)
+            yield np.array(images) / 127.5 - 1.0, np.array(label)
 
-    train_batches_fn = lambda batch_size: get_batches_fn(batch_size, train_paths, augmentation_fn=train_augmentation_fn)  # noqa
-    val_batches_fn = lambda batch_size: get_batches_fn(batch_size, val_paths, augmentation_fn=val_augmentation_fn)  # noqa  
-
-    return train_batches_fn, val_batches_fn
+    return get_batches_fn
 
 
 def gen_test_output(

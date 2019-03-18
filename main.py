@@ -143,7 +143,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     # SET UP TRAIN DATA, VAL DATA
     train_batches_fn = helper.gen_batches_function(
             params["train_data"], image_shape, n_classes, 
-            train_augmentation_fn = augmentation_fn)
+            augmentation_fn = augmentation_fn)
     val_batches_fn = helper.gen_batches_function(
             params["eval_data"], image_shape, n_classes)
     
@@ -362,7 +362,7 @@ def run():
                                     model_params.n_classes,
                                     use_batch_norm=model_params.batch_norm,
                                     weight_decay=model_params.weight_decay,
-                                    is_training=training
+                                    is_training=trainingtf.train.Saver
                                     )
     predict_op, train_op, loss, metrics, global_step, learning_rate = \
             build_estimator(logits, correct_labels, params)

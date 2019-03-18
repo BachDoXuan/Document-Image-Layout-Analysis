@@ -1,5 +1,5 @@
 #import os.path
-#import os
+import os
 #import shutil
 import tensorflow as tf
 #from keras import backend as K
@@ -14,6 +14,8 @@ import numpy as np
 from augmentation import rotate_both, flip_both, blur_both, illumination_change_both  # noqa
 from dhSegment.network.model import inference_resnet_v1_50
 from dhSegment.utils import ModelParams, TrainingParams
+from datetime import datetime
+import time
 
 # https://keras.io/backend/
 #KERAS_TRAIN = 1
@@ -88,7 +90,11 @@ def build_estimator(logits, correct_labels, params):
     else:
         learning_rate = training_params.learning_rate
         
-    tf.summary.scalar('learning_rate', learning_rate)
+#    lr_summary = tf.summary.scalar('learning_rate', learning_rate)
+#    TODO: revise to write learning_rate each global step on 
+#   tensorboard, also on console to watch and debug
+#    summary = {"lr_summary" : lr_summary} # g 
+#    summary = {"learning_rate" : lr_summary}
     
     optimizer = tf.train.AdamOptimizer(learning_rate)    
     with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
@@ -111,15 +117,15 @@ def build_estimator(logits, correct_labels, params):
                "iou_op": iou_op, 
                "iou_metric_reset": iou_metric_reset_ops}
     
-    return predict_op, train_op, loss, metrics, global_step
+    return predict_op, train_op, loss, metrics, global_step, learning_rate
 
 
 # tests.test_optimize(optimize)
 
 
 def train_and_evaluate(sess, input_images, correct_labels, training,
-                       predict_op, train_op, loss, metrics, global_step,
-                       loss_summary, iou_summary, summary, params):
+                       predict_op, train_op, loss, metrics, learning_rate,
+                       global_step, summary, params):
     """
     Train, evaluate model, output to console, output to disk for tensorboard
     and save checkpoints for future training and production.
@@ -142,10 +148,22 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
             params["eval_data"], image_shape, n_classes)
     
     # Create writers for training step and evaluation step
-    # TODO: Write time stamp into log directory
-    # TODO: Create directories (in disk/memory) for each time running code
-    writer_train = tf.summary.FileWriter('./logs/train', graph=sess.graph)
-    writer_val = tf.summary.FileWriter('./logs/val')
+    # Write time stamp into log directory
+    now = datetime.now()
+    datetime_str = now.strftime("%Y_%m_%d_%H_%M_%S")
+    output_dir = "./logs/" + datetime_str
+    train_dir = output_dir + "/train"
+    val_dir = output_dir + "/val"
+    if os.path.isdir(output_dir):
+        raise (output_dir + " already exists")
+    else:
+        os.makedirs(output_dir)
+        os.makedirs(train_dir)
+        os.makedirs(val_dir)
+        
+    # Create directories (in disk/memory) for each time running code
+    writer_train = tf.summary.FileWriter(train_dir, graph=sess.graph)
+    writer_val = tf.summary.FileWriter(val_dir)
     
     # Train and evaluate loop
     epoch_pbar = tqdm(range(n_epochs)) # to see the progress
@@ -155,14 +173,21 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         sess.run(iou_metric_reset_ops)
         train_loss = 0.0
         num_batches = 0
+        global_step_val = 0
         for images, labels in train_batches_fn(batch_size): 
             # TODO calculate global step / second (time)
-            loss_val, global_step_val, _ = \
-                    sess.run([loss, global_step, train_op, iou_op], 
+            start = time.time()
+            loss_val, global_step_val, learning_rate_val, _ = \
+                    sess.run([loss, global_step, learning_rate, 
+                              train_op, iou_op], 
                              feed_dict= {input_images: images,
                                          correct_labels: labels,
                                          training: True}
                              )
+            end = time.time()
+            
+            step_per_sec_val = 1.0 / (start - end)
+            
             # output to console
             epoch_pbar.write(
                 "Epoch %03d: global_step %10d: train_loss: %.4f"
@@ -174,12 +199,31 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         train_iou = sess.run(iou)
         train_loss /= num_batches
         
-        # compute summary and output to disk/memory
-        summary_val = sess.run(
-                        summary, feed_dict={loss_summary: train_loss,
-                                            iou_summary: train_iou}
-                        )
-        writer_train.add_summary(summary_val, global_step_val)
+        # write summary to disk to display on tensorboard
+#    summary = {"loss" : loss_val_placeholder,
+#               "iou" : iou_val_placeholder,
+#               "learning_rate" : lr_val_placeholder,
+#               "speed" : speed_val_placeholder,
+#               "loss_summary": tf.summary.scalar("loss", loss_val_placeholder),
+#               "iou_summary": tf.summary.scalar("iou", iou_val_placeholder),
+#               "lr_summary": tf.summary.scalar("learning_rate", 
+#                                               lr_val_placeholder),
+#               "speed_summary": tf.summary.scalar("global_step/sec", 
+#                                                    speed_val_placeholder),
+#               }
+        
+        loss_summary, iou_summary, lr_summary, speed_summary = \
+            sess.run([summary["loss_summary"], summary["iou_summary"],
+                      summary["lr_summary"], summary["speed_summary"]],
+                     feed_dict={summary["loss"]: train_loss,
+                               summary["iou"]: train_iou,
+                               summary["learning_rate"]: learning_rate_val,
+                               summary["speed"]: step_per_sec_val}
+                    )
+        writer_train.add_summary(loss_summary, global_step_val)
+        writer_train.add_summary(iou_summary, global_step_val)
+        writer_train.add_summary(lr_summary, global_step_val)
+        writer_train.add_summary(speed_summary, global_step_val)
         writer_train.flush()
  
         # 2. EVALUATE STEP
@@ -201,12 +245,14 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         val_iou = sess.run(iou)
         val_loss /= num_batches
         
-        # compute summary and output to disk/memory
-        summary_val = sess.run(
-                        summary, feed_dict={loss_summary: val_loss,
-                                            iou_summary: val_iou}
-                        )
-        writer_val.add_summary(summary_val, global_step_val)
+        # write summary to disk to display on tensorboard
+        loss_summary, iou_summary = \
+            sess.run([summary["loss_summary"], summary["iou_summary"]],
+                     feed_dict={summary["loss"]: val_loss,
+                                summary["iou"]: val_iou}
+                    )
+        writer_val.add_summary(loss_summary, global_step_val)
+        writer_val.add_summary(iou_summary, global_step_val)
         writer_val.flush()
         
         # output to console
@@ -319,23 +365,34 @@ def run():
                                     weight_decay=model_params.weight_decay,
                                     is_training=training
                                     )
-    predict_op, train_op, loss, metrics, global_step = \
+    predict_op, train_op, loss, metrics, global_step, learning_rate = \
             build_estimator(logits, correct_labels, params)
     
-    # 4. Build summary
-    loss_summary = tf.placeholder(tf.float32)
-    iou_summary = tf.placeholder(tf.float32)
+    # 4. Build summary to display on tensorboard
+    loss_val_placeholder = tf.placeholder(tf.float32)
+    iou_val_placeholder = tf.placeholder(tf.float32)
+    lr_val_placeholder = tf.placeholder(tf.float32)
+    speed_val_placeholder = tf.placeholder(tf.float32)
+    
+    summary = {"loss" : loss_val_placeholder,
+               "iou" : iou_val_placeholder,
+               "learning_rate" : lr_val_placeholder,
+               "speed" : speed_val_placeholder,
+               "loss_summary": tf.summary.scalar("loss", loss_val_placeholder),
+               "iou_summary": tf.summary.scalar("iou", iou_val_placeholder),
+               "lr_summary": tf.summary.scalar("learning_rate", 
+                                               lr_val_placeholder),
+               "speed_summary": tf.summary.scalar("global_step/sec", 
+                                                    speed_val_placeholder),
+               }
 
-    tf.summary.scalar("loss", loss_summary)
-    tf.summary.scalar("iou", iou_summary)
-    summary = tf.summary.merge_all()
+    
     ##################################
     ### CREATE AND RUN SESSION #######
     ##################################
 
     with tf.Session() as sess:        
-        # TODO: load back checkpoint to continue training and evaluating
-        
+        # TODO: load back checkpoint to continue training and evaluating 
         # INITIALIZE ALL VARIABLES
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
@@ -350,8 +407,8 @@ def run():
         
         # TRAIN AND EVALUATE LEARNING MODEL
         train_and_evaluate(sess, input_images, correct_labels, training,
-                           train_op, loss, metrics, params, summary,
-                           loss_summary, iou_summary, global_step
+                           predict_op, train_op, loss, metrics, learning_rate,
+                           global_step, summary, params
                            )
         
         # TODO: load back the checkpoint that is good for production and

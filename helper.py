@@ -147,7 +147,7 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 images.append(image)
                 labels.append(label)
 
-            yield np.array(images) / 127.5 - 1.0, np.array(label)
+            yield np.array(images) / 127.5 - 1.0, np.array(labels)
 
     return get_batches_fn
 

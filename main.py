@@ -362,7 +362,7 @@ def run():
                                     model_params.n_classes,
                                     use_batch_norm=model_params.batch_norm,
                                     weight_decay=model_params.weight_decay,
-                                    is_training=trainingtf.train.Saver
+                                    is_training=training
                                     )
     predict_op, train_op, loss, metrics, global_step, learning_rate = \
             build_estimator(logits, correct_labels, params)

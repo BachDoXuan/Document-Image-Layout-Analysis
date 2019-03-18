@@ -108,3 +108,4 @@ pages/
 pretrained_models/resnet_v1_50.ckpt
 from_dhSegment/
 runs/
+logs/

@@ -134,7 +134,7 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 
         
                 # resize images
-                image = cv2.resize(image, (image_shape[1], image_shape[0], 3),
+                image = cv2.resize(image, (image_shape[1], image_shape[0]),
                                    interpolation = cv2.INTER_LINEAR)
                 label = cv2.resize(label, (image_shape[1], image_shape[0]),
                                    interpolation = cv2.INTER_NEAREST)

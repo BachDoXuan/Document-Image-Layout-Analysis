@@ -127,6 +127,8 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 assert (image.shape[0] == label.shape[0] and \
                         image.shape[1] == label.shape[1]), \
                         "image and label are not of the same shape"
+                print("image shape:", image.shape)
+                print("label shape:", label.shape)
                 
                 # TODO: rewrite augmentation_fn
                 if augmentation_fn:

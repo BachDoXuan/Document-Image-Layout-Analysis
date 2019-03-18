@@ -9,10 +9,10 @@ import time
 import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
-from keras.utils import get_file
+#from keras.utils import get_file
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from IPython import embed
+#from IPython import embed
 import cv2
 
 

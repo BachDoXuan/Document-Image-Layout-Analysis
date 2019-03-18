@@ -12,8 +12,8 @@ from tqdm import tqdm
 import numpy as np
 #from IPython import embed
 from augmentation import rotate_both, flip_both, blur_both, illumination_change_both  # noqa
-from dhSegment.network.model import inference_resnet_v1_50
-from dhSegment.utils import ModelParams, TrainingParams
+from dh_segment.network.model import inference_resnet_v1_50
+from dh_segment.utils import ModelParams, TrainingParams
 from datetime import datetime
 import time
 
@@ -355,7 +355,7 @@ def run():
         shape=[None, image_shape[0], image_shape[1], num_classes],
         name='correct_labels')
     
-    training = tf.placeholder(tf.bool(), name='training')    # for batch norm layers 
+    training = tf.placeholder(tf.bool, name='training')    # for batch norm layers 
     
     # 3. Build computation graph
     logits = inference_resnet_v1_50(input_images,

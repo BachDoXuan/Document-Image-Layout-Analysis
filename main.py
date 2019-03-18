@@ -348,7 +348,7 @@ def run():
     # 2. Create input tensor for computation graphs
     input_images = tf.placeholder(
         tf.float32,
-        shape=[None, image_shape[0], image_shape[1], 3)
+        shape=[None, image_shape[0], image_shape[1], 3])
     correct_labels = tf.placeholder(
         tf.float32,
         shape=[None, image_shape[0], image_shape[1], num_classes],

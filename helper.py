@@ -160,9 +160,12 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 # append to batch
                 images.append(image)
                 labels.append(label)
-
-            yield np.array(images) / 127.5 - 1.0, np.array(labels)
-
+            
+            images = np.array(images) / 127.5 - 1.0 # normalize mean of images
+            labels = np.array(labels)
+            print("image batch shape:", images.shape)
+            print("label batch shape:", labels.shape)
+            yield images, labels
     return get_batches_fn
 
 

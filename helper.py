@@ -125,8 +125,7 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 #       have the channels stored in B G R order.
                 image = cv2.imread(image_path)
                 label = cv2.imread(label_path)
-                assert (image.shape[0] == label.shape[0] and \
-                        image.shape[1] == label.shape[1]), \
+                assert (image.shape == label.shape), \
                         "image and label are not of the same shape"
                 print("image shape:", image.shape)
                 print("label shape:", label.shape)
@@ -143,8 +142,19 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                                    interpolation = cv2.INTER_NEAREST)
                 
                 # convert label into one-hot type
+                mask = np.zeros((label.shape[0], label.shape[1]), 
+                                dtype = np.uint16)
+                
+                # TODO: write a more general code by removing [0, 0, 1] etc
+                mask_1 = np.sum(label * [0,0,1], axis=2) > 0 
+                mask_2 = np.sum(label * [0,1,0], axis=2) > 0
+                mask_3 = np.sum(label * [1,0,0], axis=2) > 0
+                mask[mask_1] = 1
+                mask[mask_2] = 2
+                mask[mask_3] = 3
+                
                 class_eye = np.eye(n_classes, dtype = np.uint8)
-                label = class_eye[label, :]
+                label = class_eye[mask, :]
                 
                 # append to batch
                 images.append(image)

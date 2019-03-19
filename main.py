@@ -177,7 +177,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         for images, labels in train_batches_fn(batch_size): 
             # TODO calculate global step / second (time)
             start = time.time()
-            loss_val, global_step_val, learning_rate_val, _ = \
+            loss_val, global_step_val, learning_rate_val, _, _ = \
                     sess.run([loss, global_step, learning_rate, 
                               train_op, iou_op], 
                              feed_dict= {input_images: images,

@@ -131,11 +131,12 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 print("label shape:", label.shape)
                 
                 # TODO: rewrite augmentation_fn
-                if augmentation_fn:
-                    image, label = augmentation_fn(image, label)
+#                if augmentation_fn:
+#                    image, label = augmentation_fn(image, label)
                 
         
                 # resize images
+                print("resized image shape:", image_shape)
                 image = cv2.resize(image, (image_shape[1], image_shape[0]),
                                    interpolation = cv2.INTER_LINEAR)
                 label = cv2.resize(label, (image_shape[1], image_shape[0]),

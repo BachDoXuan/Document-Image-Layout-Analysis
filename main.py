@@ -309,7 +309,7 @@ def run():
             "seed": 625110693,
             "train_data": "data/pages/train/",
             "training_params": {
-                    "batch_size": 1,
+                    "batch_size": 2,
                     "data_augmentation": True,
                     "data_augmentation_color": True,
                     "data_augmentation_flip_lr": True,
@@ -331,6 +331,7 @@ def run():
                     },
             "image_shape" : (896, 576),
             "learning_rate_val" : 0.001,
+            "debug" : True,
             
             }
     

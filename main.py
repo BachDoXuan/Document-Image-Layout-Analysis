@@ -186,7 +186,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                              )
             end = time.time()
             
-            step_per_sec_val = 1.0 / (start - end)
+            step_per_sec_val = 1.0 / (end - start)
             
             # output to console
             epoch_pbar.write(

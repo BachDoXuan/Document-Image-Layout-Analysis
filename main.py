@@ -449,11 +449,11 @@ def run():
         sess.run(tf.local_variables_initializer())
         
         # LOAD PRETRAINED WEIGHTS INTO GRAPH OPS BELONGING TO RESNET BASE MODEL
-#        key_restore_model = 'resnet_v1_50'
-#        pretrained_restorer = \
-#                tf.train.Saver(var_list= [v for v in tf.global_variables()
-#                                            if key_restore_model in v.name])
-#        pretrained_restorer.restore(sess, model_params.pretrained_model_file)
+        key_restore_model = 'resnet_v1_50'
+        pretrained_restorer = \
+                tf.train.Saver(var_list= [v for v in tf.global_variables()
+                                            if key_restore_model in v.name])
+        pretrained_restorer.restore(sess, model_params.pretrained_model_file)
         
         
         # TRAIN AND EVALUATE LEARNING MODEL

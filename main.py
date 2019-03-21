@@ -203,7 +203,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 label[origin_label == 3] = [0, 0, 255]
                 label = np.expand_dims(label, axis = 0)
                 
-                prediction_label = predict_val["labels"][1,:,:]
+                prediction_label = predict_val["labels"][0,:,:]
                 prediction = np.zeros((prediction_label.shape[0], 
                                        prediction_label.shape[1], 3),
                                         dtype=np.uint8)
@@ -336,7 +336,7 @@ def run():
             "seed": 625110693,
             "train_data": "data/pages/train/",
             "training_params": {
-                    "batch_size": 1,
+                    "batch_size": 2,
                     "data_augmentation": True,
                     "data_augmentation_color": True,
                     "data_augmentation_flip_lr": True,

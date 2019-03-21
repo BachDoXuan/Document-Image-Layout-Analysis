@@ -134,36 +134,17 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     iou_metric_reset_ops = metrics["iou_metric_reset"]
     n_epochs = params["training_params"]["n_epochs"]
     batch_size = params["training_params"]["batch_size"]
-#    image_shape = params["image_shape"]
-#    n_classes = params["model_params"]["n_classes"]
-    training_params = TrainingParams.from_dict(params['training_params'])
+    image_shape = params["image_shape"]
+    n_classes = params["model_params"]["n_classes"]
+#    training_params = TrainingParams.from_dict(params['training_params'])
     
     # SET UP TRAIN DATA, VAL DATA
-#    train_batches_fn = helper.gen_batches_function(
-#            params["train_data"], image_shape, n_classes, 
-#            augmentation_fn = augmentation_fn)
-#    val_batches_fn = helper.gen_batches_function(
-#            params["eval_data"], image_shape, n_classes)
-    train_batches_fn = input_helper.input_fn(
-                input_data = os.path.join(params["train_data"], "images"), 
-                params = params, 
-                input_label_dir = os.path.join(params["train_data"], "labels"), 
-                num_epochs=training_params.evaluate_every_epoch, 
-                batch_size=training_params.batch_size,
-                data_augmentation=training_params.data_augmentation,
-                make_patches=training_params.make_patches,
-                image_summaries=True,
-                num_threads=32
-                )
-    val_batches_fn = input_helper.input_fn(
-                input_data = os.path.join(params["eval_data"], "images"),
-                params = params, 
-                input_label_dir = os.path.join(params["eval_data"], "labels"),
-                batch_size=1,
-                data_augmentation=False,
-                make_patches=False,
-                image_summaries=False,
-                num_threads=32)
+    train_batches_fn = helper.gen_batches_function(
+            params["train_data"], image_shape, n_classes, 
+            augmentation_fn = augmentation_fn)
+    val_batches_fn = helper.gen_batches_function(
+            params["eval_data"], image_shape, n_classes)
+
     
     # Create writers for training step and evaluation step
     # Write time stamp into log directory
@@ -196,7 +177,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         # TODO write image, label, prediction summary to watch on tensorboard
         # save 1 image - label -prediction to display on tensorboard for 
         # every 10 global steps
-        for images, labels in train_batches_fn(): 
+        for images, labels in train_batches_fn(batch_size): 
             
             # calculate speed: global step per second
             start = time.time()

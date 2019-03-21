@@ -16,10 +16,7 @@ from dh_segment.network.model import inference_resnet_v1_50
 from dh_segment.utils import ModelParams, TrainingParams
 from datetime import datetime
 import time
-
-# https://keras.io/backend/
-#KERAS_TRAIN = 1
-#KERAS_TEST = 0
+import input_helper
 
 # Check TensorFlow Version
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), \
@@ -193,9 +190,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
             
             
             if global_step_val % 10 == 0:
-                image = np.expand_dims(images[1,:,:,:], axis=0)
+                image = np.expand_dims(images[0,:,:,:], axis=0)
                 
-                origin_label = labels[1,:,:,:]
+                origin_label = labels[0,:,:,:]
                 origin_label = np.argmax(origin_label, axis=-1)
                 label = np.zeros((origin_label.shape[0], origin_label.shape[1],
                                   3), dtype=np.uint8)

@@ -393,6 +393,10 @@ def run():
                                     weight_decay=model_params.weight_decay,
                                     is_training=training
                                     )
+    key_restore_model = 'resnet_v1_50'
+    pretrained_restorer = \
+                tf.train.Saver(var_list= [v for v in tf.global_variables()
+                                            if key_restore_model in v.name])
     predict_op, train_op, loss, metrics, global_step, learning_rate, \
         optimizer = build_estimator(logits, correct_labels, params)
     
@@ -450,11 +454,7 @@ def run():
         sess.run(tf.local_variables_initializer())
         
         # LOAD PRETRAINED WEIGHTS INTO GRAPH OPS BELONGING TO RESNET BASE MODEL
-        key_restore_model = 'resnet_v1_50'
-        pretrained_restorer = \
-                tf.train.Saver(var_list= [v for v in tf.global_variables()
-                                            if key_restore_model in v.name])
-                
+              
         with open("global_vars.txt", "w") as var_file:
             for v in tf.global_variables():
                 var_file.write("{}\n".format(v.name))
@@ -463,9 +463,9 @@ def run():
             for v in tf.global_variables():      
                 if key_restore_model in v.name:
                     var_file.write("{}\n".format(v.name))
-        with open("optimizer_vars.txt", "w") as var_file:
-            for v in tf.global_variables(optimizer.variables()):
-                var_file.write("{}\n".format(v.name))
+#        with open("optimizer_vars.txt", "w") as var_file:
+#            for v in tf.global_variables(optimizer.variables()):
+#                var_file.write("{}\n".format(v.name))
                 
         pretrained_restorer.restore(sess, model_params.pretrained_model_file)
         

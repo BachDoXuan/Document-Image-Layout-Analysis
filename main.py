@@ -206,9 +206,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 prediction = np.zeros((prediction_label.shape[0], 
                                        prediction_label.shape[1], 3),
                                         dtype=np.uint8)
-                prediction(prediction_label == 1) = [255, 0, 0]
-                prediction(prediction_label == 2) = [0, 255, 0]
-                prediction(prediction_label == 2) = [0, 0, 255]
+                prediction[prediction_label == 1] = [255, 0, 0]
+                prediction[prediction_label == 2] = [0, 255, 0]
+                prediction[prediction_label == 2] = [0, 0, 255]
                 prediction = np.expand_dims(prediction, axis = 0)
                 if params["debug"]:
                     print("label shape:", label.shape)

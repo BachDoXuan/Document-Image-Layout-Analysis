@@ -453,7 +453,7 @@ def run():
         pretrained_restorer = \
                 tf.train.Saver(var_list= [v for v in tf.global_variables()
                                             if key_restore_model in v.name])
-        with open("var names.txt", "w") as var_file:
+        with open("vars.txt", "w") as var_file:
             for v in tf.global_variables():
                 if key_restore_model in v.name:
                     var_file.write("{}\n".format(v.name))

@@ -114,7 +114,8 @@ def build_estimator(logits, correct_labels, params):
                "iou_op": iou_op, 
                "iou_metric_reset": iou_metric_reset_ops}
     
-    return predict_op, train_op, loss, metrics, global_step, learning_rate
+    return predict_op, train_op, loss, metrics, global_step, learning_rate, \
+            optimizer
 
 
 # tests.test_optimize(optimize)
@@ -392,8 +393,8 @@ def run():
                                     weight_decay=model_params.weight_decay,
                                     is_training=training
                                     )
-    predict_op, train_op, loss, metrics, global_step, learning_rate = \
-            build_estimator(logits, correct_labels, params)
+    predict_op, train_op, loss, metrics, global_step, learning_rate, \
+        optimizer = build_estimator(logits, correct_labels, params)
     
     # 4. Build summary to display on tensorboard
     loss_val_placeholder = tf.placeholder(tf.float32)
@@ -462,7 +463,10 @@ def run():
             for v in tf.global_variables():      
                 if key_restore_model in v.name:
                     var_file.write("{}\n".format(v.name))
-                    
+        with open("optimizer_vars.txt", "w") as var_file:
+            for v in tf.global_variables(optimizer.variables()):
+                var_file.write("{}\n".format(v.name))
+                
         pretrained_restorer.restore(sess, model_params.pretrained_model_file)
         
         

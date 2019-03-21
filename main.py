@@ -218,7 +218,8 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                     sess.run([summary["image_summary"], 
                               summary["label_summary"],
                               summary["prediction_summary"]],
-                        feed_dict = {summary["image"]: images[1,:,:,:],
+                        feed_dict = {summary["image"]: 
+                                        np.expand_dims(images[1,:,:,:], axis=0)
                                      summary["correct_label"]: label,
                                      summary["prediction_label"]: prediction 
                                          })

@@ -134,15 +134,36 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     iou_metric_reset_ops = metrics["iou_metric_reset"]
     n_epochs = params["training_params"]["n_epochs"]
     batch_size = params["training_params"]["batch_size"]
-    image_shape = params["image_shape"]
-    n_classes = params["model_params"]["n_classes"]
+#    image_shape = params["image_shape"]
+#    n_classes = params["model_params"]["n_classes"]
+    training_params = TrainingParams.from_dict(params['training_params'])
     
     # SET UP TRAIN DATA, VAL DATA
-    train_batches_fn = helper.gen_batches_function(
-            params["train_data"], image_shape, n_classes, 
-            augmentation_fn = augmentation_fn)
-    val_batches_fn = helper.gen_batches_function(
-            params["eval_data"], image_shape, n_classes)
+#    train_batches_fn = helper.gen_batches_function(
+#            params["train_data"], image_shape, n_classes, 
+#            augmentation_fn = augmentation_fn)
+#    val_batches_fn = helper.gen_batches_function(
+#            params["eval_data"], image_shape, n_classes)
+    train_batches_fn = input_helper.input_fn(
+                input_data = os.path.join(params["train_data"], "images"), 
+                params = params, 
+                input_label_dir = os.path.join(params["train_data"], "labels"), 
+                num_epochs=training_params.evaluate_every_epoch, 
+                batch_size=training_params.batch_size,
+                data_augmentation=training_params.data_augmentation,
+                make_patches=training_params.make_patches,
+                image_summaries=True,
+                num_threads=32
+                )
+    val_batches_fn = input_helper.input_fn(
+                input_data = os.path.join(params["val_data"], "images"),
+                params = params, 
+                nput_label_dir = os.path.join(params["train_data"], "labels"),
+                batch_size=1,
+                data_augmentation=False,
+                make_patches=False,
+                image_summaries=False,
+                num_threads=32)
     
     # Create writers for training step and evaluation step
     # Write time stamp into log directory
@@ -207,7 +228,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                         dtype=np.uint8)
                 prediction[prediction_label == 1] = [255, 0, 0]
                 prediction[prediction_label == 2] = [0, 255, 0]
-                prediction[prediction_label == 2] = [0, 0, 255]
+                prediction[prediction_label == 3] = [0, 0, 255]
                 prediction = np.expand_dims(prediction, axis = 0)
                 if params["debug"]:
                     print("label shape:", label.shape)
@@ -334,7 +355,7 @@ def run():
             "seed": 625110693,
             "train_data": "data/pages/train/",
             "training_params": {
-                    "batch_size": 2,
+                    "batch_size": 1,
                     "data_augmentation": True,
                     "data_augmentation_color": True,
                     "data_augmentation_flip_lr": True,

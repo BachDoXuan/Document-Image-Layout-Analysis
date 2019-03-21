@@ -196,7 +196,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         # TODO write image, label, prediction summary to watch on tensorboard
         # save 1 image - label -prediction to display on tensorboard for 
         # every 10 global steps
-        for images, labels in train_batches_fn(batch_size): 
+        for images, labels in train_batches_fn(): 
             
             # calculate speed: global step per second
             start = time.time()

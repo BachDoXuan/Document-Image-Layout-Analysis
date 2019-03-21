@@ -202,7 +202,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 label[origin_label == 3] = [0, 0, 255]
                 label = np.expand_dims(label, axis = 0)
                 
-                prediction_label = predict_val["labels"]
+                prediction_label = predict_val["labels"][1,:,:]
                 prediction = np.zeros((prediction_label.shape[0], 
                                        prediction_label.shape[1], 3),
                                         dtype=np.uint8)

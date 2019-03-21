@@ -356,7 +356,7 @@ def run():
                     "training_margin": 0,
                     "weights_labels": None
                     },
-            "image_shape" : (896, 576),
+            "image_shape" : [896, 576],
             "learning_rate_val" : 0.001,
             "debug" : True,
             

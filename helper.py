@@ -4,7 +4,7 @@ import os
 from glob import glob
 from tqdm import tqdm
 import cv2
-
+import tensorflow as tf
 
 class DLProgress(tqdm):
     last_block = 0
@@ -64,24 +64,42 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 #       have the channels stored in B G R order.
                 image = cv2.imread(image_path)
                 label = cv2.imread(label_path)
-                assert (image.shape == label.shape), \
-                        "image and label are not of the same shape"
-                if debug:
-                    print("image shape:", image.shape)
-                    print("label shape:", label.shape)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#                image = tf.to_float(tf.image.decode_jpeg(
+#                                        tf.read_file(image_path), 
+#                                        channels=3,
+#                                        try_recover_truncated=True)
+#                                    )
+#                label = tf.to_float(tf.image.decode_jpeg(
+#                                        tf.read_file(label_path), 
+#                                        channels=3,
+#                                        try_recover_truncated=True)
+#                                    )
+                
+#                assert (image.shape == label.shape), \
+#                        "image and label are not of the same shape"
+#                if debug:
+#                    print("image shape:", image.shape)
+#                    print("label shape:", label.shape)
                 
                 # TODO: rewrite augmentation_fn
 #                if augmentation_fn:
 #                    image, label = augmentation_fn(image, label)
-                
-        
+                       
                 # resize images
-                if debug:
-                    print("resized image shape:", image_shape)
+#                if debug:
+#                    print("resized image shape:", image_shape)
+                    
                 image = cv2.resize(image, (image_shape[1], image_shape[0]),
                                    interpolation = cv2.INTER_LINEAR)
                 label = cv2.resize(label, (image_shape[1], image_shape[0]),
                                    interpolation = cv2.INTER_NEAREST)
+#                image = tf.image.resize_images(image, 
+#                                               tf.cast(image_shape, tf.int32), 
+#                                               method=tf.image.ResizeMethod.BILINEAR)
+#                label = tf.image.resize_images(label, 
+#                                               tf.cast(image_shape, tf.int32), 
+#                                               method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
                 
                 # convert label into one-hot type
                 mask = np.zeros((label.shape[0], label.shape[1]), 

@@ -194,7 +194,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
             
             if global_step_val % 10 == 0:
                 origin_label = labels[1,:,:,:]
-                origin_label = np.argmax(label_for_summary, axis=-1)
+                origin_label = np.argmax(origin_label, axis=-1)
                 label = np.zeros((origin_label.shape[0], origin_label.shape[1],
                                   3), dtype=np.uint8)
                 label[origin_label == 1] = [255, 0, 0]
@@ -223,6 +223,10 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                      summary["prediction_label"]: prediction 
                                          })
          
+                writer_train.add_summary(image_summary, global_step_val)
+                writer_train.add_summary(label_summary, global_step_val)
+                writer_train.add_summary(prediction_summary, global_step_val)
+                
             step_per_sec_val = 1.0 / (end - start)
             
             # output to console

@@ -156,9 +156,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 num_threads=32
                 )
     val_batches_fn = input_helper.input_fn(
-                input_data = os.path.join(params["val_data"], "images"),
+                input_data = os.path.join(params["eval_data"], "images"),
                 params = params, 
-                nput_label_dir = os.path.join(params["train_data"], "labels"),
+                nput_label_dir = os.path.join(params["eval_data"], "labels"),
                 batch_size=1,
                 data_augmentation=False,
                 make_patches=False,

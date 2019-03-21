@@ -393,10 +393,16 @@ def run():
                                     weight_decay=model_params.weight_decay,
                                     is_training=training
                                     )
+
     key_restore_model = 'resnet_v1_50'
     pretrained_restorer = \
                 tf.train.Saver(var_list= [v for v in tf.global_variables()
                                             if key_restore_model in v.name])
+    with open("resnet_v1_50_vars_before.txt", "w") as var_file:
+        for v in tf.global_variables():      
+            if key_restore_model in v.name:
+                var_file.write("{}\n".format(v.name))
+                
     predict_op, train_op, loss, metrics, global_step, learning_rate, \
         optimizer = build_estimator(logits, correct_labels, params)
     
@@ -459,7 +465,7 @@ def run():
             for v in tf.global_variables():
                 var_file.write("{}\n".format(v.name))
                 
-        with open("resnet_v1_50_vars.txt", "w") as var_file:
+        with open("resnet_v1_50_vars_after.txt", "w") as var_file:
             for v in tf.global_variables():      
                 if key_restore_model in v.name:
                     var_file.write("{}\n".format(v.name))

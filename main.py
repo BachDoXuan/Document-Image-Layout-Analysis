@@ -193,6 +193,8 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
             
             
             if global_step_val % 10 == 0:
+                image = np.expand_dims(images[1,:,:,:], axis=0)
+                
                 origin_label = labels[1,:,:,:]
                 origin_label = np.argmax(origin_label, axis=-1)
                 label = np.zeros((origin_label.shape[0], origin_label.shape[1],
@@ -218,8 +220,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                     sess.run([summary["image_summary"], 
                               summary["label_summary"],
                               summary["prediction_summary"]],
-                        feed_dict = {summary["image"]: 
-                                        np.expand_dims(images[1,:,:,:], axis=0)
+                        feed_dict = {summary["image"]: image,                                        
                                      summary["correct_label"]: label,
                                      summary["prediction_label"]: prediction 
                                          })

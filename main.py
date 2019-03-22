@@ -138,6 +138,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     image_shape = params["image_shape"]
     n_classes = params["model_params"]["n_classes"]
     training_params = TrainingParams.from_dict(params['training_params'])
+    model_params = ModelParams(**params['model_params'])
     
     # SET UP TRAIN DATA, VAL DATA
 #    train_batches_fn = helper.gen_batches_function(
@@ -197,6 +198,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         while True:
             try:
                 images, labels = sess.run([next_images, next_labels])
+                # TODO convert label (shape [batch_size, height, width]) into
+                # of shape [batch_size, height, width, 3]
+                labels = tf.one_hot(indices=labels, depth=model_params.n_classes)
                 predict_val, loss_val, global_step_val, learning_rate_val, _, _ = \
                         sess.run([predict_op, loss, global_step, learning_rate, 
                                   train_op, iou_op], 
@@ -368,7 +372,7 @@ def run():
             "seed": 625110693,
             "train_data": "data/pages/train/",
             "training_params": {
-                    "batch_size": 2,
+                    "batch_size": 1,
                     "data_augmentation": True,
                     "data_augmentation_color": True,
                     "data_augmentation_flip_lr": True,

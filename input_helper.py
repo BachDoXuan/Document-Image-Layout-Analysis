@@ -190,7 +190,7 @@ def input_fn(input_data: Union[str, List[str]], params: dict,
                 raise FileNotFoundError(label_filename)
 
     # Tensorflow input_fn
-    def generate_batches_fn():
+    def fn():
         if not has_labelled_data:
             encoded_filenames = [f.encode() for f in input_image_filenames]
             dataset = tf.data.Dataset.from_generator(lambda: tqdm(encoded_filenames, desc='Dataset'),
@@ -254,6 +254,6 @@ def input_fn(input_data: Union[str, List[str]], params: dict,
                                                         shape_summary_img),
                                  max_outputs=1)
 
-        return prepared_batch, prepared_batch.get('labels')
+        return prepared_batch.get('images'), prepared_batch.get('labels')
 
-    return generate_batches_fn
+    return fn

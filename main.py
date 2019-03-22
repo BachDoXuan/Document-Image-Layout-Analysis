@@ -137,15 +137,33 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     batch_size = params["training_params"]["batch_size"]
     image_shape = params["image_shape"]
     n_classes = params["model_params"]["n_classes"]
-#    training_params = TrainingParams.from_dict(params['training_params'])
+    training_params = TrainingParams.from_dict(params['training_params'])
     
     # SET UP TRAIN DATA, VAL DATA
-    train_batches_fn = helper.gen_batches_function(
-            params["train_data"], image_shape, n_classes, 
-            augmentation_fn = augmentation_fn)
-    val_batches_fn = helper.gen_batches_function(
-            params["eval_data"], image_shape, n_classes)
-
+#    train_batches_fn = helper.gen_batches_function(
+#            params["train_data"], image_shape, n_classes, 
+#            augmentation_fn = augmentation_fn)
+#    val_batches_fn = helper.gen_batches_function(
+#            params["eval_data"], image_shape, n_classes)
+    train_batches_fn = input_helper.input_fn(
+                            input_data = os.path.join(params["train_data"], "images"),
+                            input_label_dir = os.path.join(params["train_data"], "labels"),
+                            num_epochs=training_params.evaluate_every_epoch,
+                            batch_size=training_params.batch_size,
+                            data_augmentation=training_params.data_augmentation,
+                            make_patches=training_params.make_patches,
+                            image_summaries=True,
+                            params=params,
+                            num_threads=32)
+    val_batches_fn = input_helper.input_fn(
+                            input_data = os.path.join(params["eval_data"], "images"),
+                            input_label_dir= os.path.join(params["eval_data"], "images"),
+                            batch_size=1,
+                            data_augmentation=False,
+                            make_patches=False,
+                            image_summaries=False,
+                            params=params,
+                            num_threads=32)
     
     # Create writers for training step and evaluation step
     # Write time stamp into log directory
@@ -175,123 +193,136 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         num_batches = 0
         global_step_val = 0
         
+        next_images, next_labels = train_batches_fn()
+        while True:
+            try:
+                images, labels = sess.run([next_images, next_labels])
+                predict_val, loss_val, global_step_val, learning_rate_val, _, _ = \
+                        sess.run([predict_op, loss, global_step, learning_rate, 
+                                  train_op, iou_op], 
+                                 feed_dict= {input_images: images,
+                                             correct_labels: labels,
+                                             training: True}
+                                 )
+            except tf.errors.OutOfRangeError:
+                break
         # TODO write image, label, prediction summary to watch on tensorboard
         # save 1 image - label -prediction to display on tensorboard for 
         # every 10 global steps
-        for images, labels in train_batches_fn(batch_size): 
-            
+        
+#        for images, labels in train_batches_fn(batch_size): 
             # calculate speed: global step per second
-            start = time.time()
-            predict_val, loss_val, global_step_val, learning_rate_val, _, _ = \
-                    sess.run([predict_op, loss, global_step, learning_rate, 
-                              train_op, iou_op], 
-                             feed_dict= {input_images: images,
-                                         correct_labels: labels,
-                                         training: True}
-                             )
-            end = time.time()
+#            start = time.time()
+#            predict_val, loss_val, global_step_val, learning_rate_val, _, _ = \
+#                    sess.run([predict_op, loss, global_step, learning_rate, 
+#                              train_op, iou_op], 
+#                             feed_dict= {input_images: images,
+#                                         correct_labels: labels,
+#                                         training: True}
+#                             )
+#            end = time.time()
+#            
             
-            
-            if global_step_val % 10 == 0:
-                image = np.expand_dims(images[0,:,:,:], axis=0)
-                
-                origin_label = labels[0,:,:,:]
-                origin_label = np.argmax(origin_label, axis=-1)
-                label = np.zeros((origin_label.shape[0], origin_label.shape[1],
-                                  3), dtype=np.uint8)
-                label[origin_label == 1] = [255, 0, 0]
-                label[origin_label == 2] = [0, 255, 0]
-                label[origin_label == 3] = [0, 0, 255]
-                label = np.expand_dims(label, axis = 0)
-                
-                prediction_label = predict_val["labels"][0,:,:]
-                prediction = np.zeros((prediction_label.shape[0], 
-                                       prediction_label.shape[1], 3),
-                                        dtype=np.uint8)
-                prediction[prediction_label == 1] = [255, 0, 0]
-                prediction[prediction_label == 2] = [0, 255, 0]
-                prediction[prediction_label == 3] = [0, 0, 255]
-                prediction = np.expand_dims(prediction, axis = 0)
-                if params["debug"]:
-                    print("label shape:", label.shape)
-                    print("prediction shape:", prediction.shape)
-                    
-                image_summary, label_summary, prediction_summary = \
-                    sess.run([summary["image_summary"], 
-                              summary["label_summary"],
-                              summary["prediction_summary"]],
-                        feed_dict = {summary["image"]: image,                                        
-                                     summary["correct_label"]: label,
-                                     summary["prediction_label"]: prediction 
-                                         })
-         
-                writer_train.add_summary(image_summary, global_step_val)
-                writer_train.add_summary(label_summary, global_step_val)
-                writer_train.add_summary(prediction_summary, global_step_val)
-                
-            step_per_sec_val = 1.0 / (end - start)
+#            if global_step_val % 10 == 0:
+#                image = np.expand_dims(images[0,:,:,:], axis=0)
+#                
+#                origin_label = labels[0,:,:,:]
+#                origin_label = np.argmax(origin_label, axis=-1)
+#                label = np.zeros((origin_label.shape[0], origin_label.shape[1],
+#                                  3), dtype=np.uint8)
+#                label[origin_label == 1] = [255, 0, 0]
+#                label[origin_label == 2] = [0, 255, 0]
+#                label[origin_label == 3] = [0, 0, 255]
+#                label = np.expand_dims(label, axis = 0)
+#                
+#                prediction_label = predict_val["labels"][0,:,:]
+#                prediction = np.zeros((prediction_label.shape[0], 
+#                                       prediction_label.shape[1], 3),
+#                                        dtype=np.uint8)
+#                prediction[prediction_label == 1] = [255, 0, 0]
+#                prediction[prediction_label == 2] = [0, 255, 0]
+#                prediction[prediction_label == 3] = [0, 0, 255]
+#                prediction = np.expand_dims(prediction, axis = 0)
+#                if params["debug"]:
+#                    print("label shape:", label.shape)
+#                    print("prediction shape:", prediction.shape)
+#                    
+#                image_summary, label_summary, prediction_summary = \
+#                    sess.run([summary["image_summary"], 
+#                              summary["label_summary"],
+#                              summary["prediction_summary"]],
+#                        feed_dict = {summary["image"]: image,                                        
+#                                     summary["correct_label"]: label,
+#                                     summary["prediction_label"]: prediction 
+#                                         })
+#         
+#                writer_train.add_summary(image_summary, global_step_val)
+#                writer_train.add_summary(label_summary, global_step_val)
+#                writer_train.add_summary(prediction_summary, global_step_val)
+#                
+#            step_per_sec_val = 1.0 / (end - start)
             
             # output to console
-            epoch_pbar.write(
-                "Epoch: %03d, global_step: %6d, train_loss: %.4f"
-                % (epoch, global_step_val, loss_val)
-                )
-            train_loss += loss_val
-            num_batches += 1
-
-        train_iou = sess.run(iou)
-        train_loss /= num_batches
+#            epoch_pbar.write(
+#                "Epoch: %03d, global_step: %6d, train_loss: %.4f"
+#                % (epoch, global_step_val, loss_val)
+#                )
+#            train_loss += loss_val
+#            num_batches += 1
+#
+#        train_iou = sess.run(iou)
+#        train_loss /= num_batches
         
         # write summary to disk to display on tensorboard
         
-        loss_summary, iou_summary, lr_summary, speed_summary = \
-            sess.run([summary["loss_summary"], summary["iou_summary"],
-                      summary["lr_summary"], summary["speed_summary"]],
-                     feed_dict={summary["loss"]: train_loss,
-                               summary["iou"]: train_iou,
-                               summary["learning_rate"]: learning_rate_val,
-                               summary["speed"]: step_per_sec_val}
-                    )
-        writer_train.add_summary(loss_summary, global_step_val)
-        writer_train.add_summary(iou_summary, global_step_val)
-        writer_train.add_summary(lr_summary, global_step_val)
-        writer_train.add_summary(speed_summary, global_step_val)
-        writer_train.flush()
+#        loss_summary, iou_summary, lr_summary, speed_summary = \
+#            sess.run([summary["loss_summary"], summary["iou_summary"],
+#                      summary["lr_summary"], summary["speed_summary"]],
+#                     feed_dict={summary["loss"]: train_loss,
+#                               summary["iou"]: train_iou,
+#                               summary["learning_rate"]: learning_rate_val,
+#                               summary["speed"]: step_per_sec_val}
+#                    )
+#        writer_train.add_summary(loss_summary, global_step_val)
+#        writer_train.add_summary(iou_summary, global_step_val)
+#        writer_train.add_summary(lr_summary, global_step_val)
+#        writer_train.add_summary(speed_summary, global_step_val)
+#        writer_train.flush()
  
         # 2. EVALUATE STEP
         # to calculate mIoU accuracy for each epoch
-        sess.run(iou_metric_reset_ops)  
-        val_loss = 0.0
-        num_batches = 0
-        for images, labels in val_batches_fn(batch_size):
-            loss_val, _ = sess.run([loss, iou_op], 
-                                   feed_dict= {
-                                           input_images: images,
-                                           correct_labels: labels,
-                                           training: True
-                                           }
-                                   )
-            val_loss += loss_val
-            num_batches += 1
-
-        val_iou = sess.run(iou)
-        val_loss /= num_batches
+#        sess.run(iou_metric_reset_ops)  
+#        val_loss = 0.0
+#        num_batches = 0
+#        for images, labels in val_batches_fn(batch_size):
+#            loss_val, _ = sess.run([loss, iou_op], 
+#                                   feed_dict= {
+#                                           input_images: images,
+#                                           correct_labels: labels,
+#                                           training: True
+#                                           }
+#                                   )
+#            val_loss += loss_val
+#            num_batches += 1
+#
+#        val_iou = sess.run(iou)
+#        val_loss /= num_batches
         
         # write summary to disk to display on tensorboard
-        loss_summary, iou_summary = \
-            sess.run([summary["loss_summary"], summary["iou_summary"]],
-                     feed_dict={summary["loss"]: val_loss,
-                                summary["iou"]: val_iou}
-                    )
-        writer_val.add_summary(loss_summary, global_step_val)
-        writer_val.add_summary(iou_summary, global_step_val)
-        writer_val.flush()
+#        loss_summary, iou_summary = \
+#            sess.run([summary["loss_summary"], summary["iou_summary"]],
+#                     feed_dict={summary["loss"]: val_loss,
+#                                summary["iou"]: val_iou}
+#                    )
+#        writer_val.add_summary(loss_summary, global_step_val)
+#        writer_val.add_summary(iou_summary, global_step_val)
+#        writer_val.flush()
         
         # output to console
-        epoch_pbar.write(
-            "Epoch %03d: loss: %.4f mIoU: %.4f val_loss: %.4f val_mIoU: %.4f"
-            % (epoch, train_loss, train_iou, val_loss, val_iou)
-            )
+#        epoch_pbar.write(
+#            "Epoch %03d: loss: %.4f mIoU: %.4f val_loss: %.4f val_mIoU: %.4f"
+#            % (epoch, train_loss, train_iou, val_loss, val_iou)
+#            )
         # TODO SAVE CHECKPOINT: save latest or highest val meanIoU?
         # -- save both
 

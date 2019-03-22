@@ -200,7 +200,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 images, labels = sess.run([next_images, next_labels])
                 # TODO convert label (shape [batch_size, height, width]) into
                 # of shape [batch_size, height, width, 3]
-                labels = tf.one_hot(indices=labels, depth=model_params.n_classes)
+                class_eye = np.eye(n_classes, dtype = np.uint8)
+                labels = class_eye[labels, :]
+                
                 predict_val, loss_val, global_step_val, learning_rate_val, _, _ = \
                         sess.run([predict_op, loss, global_step, learning_rate, 
                                   train_op, iou_op], 

@@ -65,7 +65,7 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 image = cv2.imread(image_path)
                 label = cv2.imread(label_path)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                label = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                label = cv2.cvtColor(label, cv2.COLOR_BGR2RGB)
 #                image = tf.to_float(tf.image.decode_jpeg(
 #                                        tf.read_file(image_path), 
 #                                        channels=3,

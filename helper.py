@@ -65,6 +65,7 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                 image = cv2.imread(image_path)
                 label = cv2.imread(label_path)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                label = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 #                image = tf.to_float(tf.image.decode_jpeg(
 #                                        tf.read_file(image_path), 
 #                                        channels=3,
@@ -106,9 +107,9 @@ def gen_batches_function(data_dir, image_shape, n_classes,
                                 dtype = np.uint16)
                 
                 # TODO: write a more general code by removing [0, 0, 1] etc
-                mask_1 = np.sum(label * [0,0,1], axis=2) > 0 
+                mask_1 = np.sum(label * [1,0,0], axis=2) > 0 
                 mask_2 = np.sum(label * [0,1,0], axis=2) > 0
-                mask_3 = np.sum(label * [1,0,0], axis=2) > 0
+                mask_3 = np.sum(label * [0,0,1], axis=2) > 0
                 mask[mask_1] = 1
                 mask[mask_2] = 2
                 mask[mask_3] = 3

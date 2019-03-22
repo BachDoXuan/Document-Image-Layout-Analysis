@@ -406,13 +406,17 @@ def run():
 #    training_params = params['training_params']
     
     # 2. Create input tensor for computation graphs
-    input_images = tf.placeholder(
-        tf.float32,
-        shape=[None, image_shape[0], image_shape[1], 3])
-    correct_labels = tf.placeholder(
-        tf.float32,
-        shape=[None, image_shape[0], image_shape[1], num_classes],
-        name='correct_labels')
+#    input_images = tf.placeholder(
+#        tf.float32,
+#        shape=[None, image_shape[0], image_shape[1], 3])
+#    correct_labels = tf.placeholder(
+#        tf.float32,
+#        shape=[None, image_shape[0], image_shape[1], num_classes],
+#        name='correct_labels')
+    input_images = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+    correct_labels = tf.placeholder(tf.float32, 
+                                    shape=[None, None, None, num_classes],
+                                    name='correct_labels')
     
     training = tf.placeholder(tf.bool, name='training')    # for batch norm layers 
     

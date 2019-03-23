@@ -281,38 +281,47 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
  
         # 2. EVALUATE STEP
         # to calculate mIoU accuracy for each epoch
-#        sess.run(iou_metric_reset_ops)  
-#        val_loss = 0.0
-#        num_batches = 0
-#        for images, labels in val_batches_fn(batch_size):
-#            loss_val, _ = sess.run([loss, iou_op], 
-#                                   feed_dict= {
-#                                           input_images: images,
-#                                           correct_labels: labels,
-#                                           training: True
-#                                           }
-#                                   )
-#            val_loss += loss_val
-#            num_batches += 1
-#
-#        val_iou = sess.run(iou)
-#        val_loss /= num_batches
+        sess.run(iou_metric_reset_ops)  
+        val_loss = 0.0
+        num_batches = 0
+        next_images, next_labels = train_batches_fn()
+        while True:
+            try:
+                images, labels = sess.run([next_images, next_labels])
+                # Convert label (shape [batch_size, height, width]) into
+                # of shape [batch_size, height, width, 3]
+                class_eye = np.eye(n_classes, dtype = np.uint8)
+                labels = class_eye[labels, :]
+                
+                loss_val, _ = sess.run([loss, iou_op], 
+                                       feed_dict= {
+                                               input_images: images,
+                                               correct_labels: labels,
+                                               training: True
+                                               }
+                                       )
+                val_loss += loss_val
+                num_batches += 1
+            except tf.errors.OutOfRangeError:
+                break
+        val_iou = sess.run(iou)
+        val_loss /= num_batches
         
         # write summary to disk to display on tensorboard
-#        loss_summary, iou_summary = \
-#            sess.run([summary["loss_summary"], summary["iou_summary"]],
-#                     feed_dict={summary["loss"]: val_loss,
-#                                summary["iou"]: val_iou}
-#                    )
-#        writer_val.add_summary(loss_summary, global_step_val)
-#        writer_val.add_summary(iou_summary, global_step_val)
-#        writer_val.flush()
+        loss_summary, iou_summary = \
+            sess.run([summary["loss_summary"], summary["iou_summary"]],
+                     feed_dict={summary["loss"]: val_loss,
+                                summary["iou"]: val_iou}
+                    )
+        writer_val.add_summary(loss_summary, global_step_val)
+        writer_val.add_summary(iou_summary, global_step_val)
+        writer_val.flush()
         
         # output to console
-#        epoch_pbar.write(
-#            "Epoch %03d: loss: %.4f mIoU: %.4f val_loss: %.4f val_mIoU: %.4f"
-#            % (epoch, train_loss, train_iou, val_loss, val_iou)
-#            )
+        epoch_pbar.write(
+            "Epoch %03d: loss: %.4f mIoU: %.4f val_loss: %.4f val_mIoU: %.4f"
+            % (epoch, train_loss, train_iou, val_loss, val_iou)
+            )
         # TODO SAVE CHECKPOINT: save latest or highest val meanIoU?
         # -- save both
 
@@ -439,15 +448,15 @@ def run():
     
     image_placeholder = \
         tf.placeholder(tf.float32,
-                       shape=[None, image_shape[0], image_shape[1], 3],
+                       shape=[None, None, None, 3],
                        name='summary/image')
     correct_label_placeholder = \
         tf.placeholder(tf.float32,
-                       shape=[None, image_shape[0], image_shape[1], 3],
+                       shape=[None, None, None, 3],
                        name='summary/label')
     prediction_label_placeholder = \
         tf.placeholder(tf.float32,
-                       shape=[None, image_shape[0], image_shape[1], 3],
+                       shape=[None, None, None, 3],
                        name='summary/prediction')
 
     summary = {"loss" : loss_val_placeholder,

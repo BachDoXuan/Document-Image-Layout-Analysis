@@ -284,7 +284,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         sess.run(iou_metric_reset_ops)  
         val_loss = 0.0
         num_batches = 0
-        next_images, next_labels = train_batches_fn()
+        next_images, next_labels = val_batches_fn()
         while True:
             try:
                 images, labels = sess.run([next_images, next_labels])

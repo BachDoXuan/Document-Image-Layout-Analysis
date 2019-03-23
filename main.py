@@ -13,7 +13,7 @@ import numpy as np
 #from IPython import embed
 from augmentation import rotate_both, flip_both, blur_both, illumination_change_both  # noqa
 from dh_segment.network.model import inference_resnet_v1_50
-from dh_segment.utils import ModelParams, TrainingParams
+from dh_segment.utils import ModelParams, TrainingParams, class_to_label_image
 from datetime import datetime
 import time
 import input_helper
@@ -46,8 +46,7 @@ def build_estimator(logits, correct_labels, params):
     # EXTRACT PARAMS 
     model_params = ModelParams(**params['model_params'])
     training_params = TrainingParams.from_dict(params['training_params'])
-#    model_params = params['model_params']
-#    training_params = params['training_params']   
+    classes_file = params['classes_file']  
     
     # BUILD PREDICTION OP 
     #   (FOR PREDICTION PHASE AND INFERENCE PHASE - REAL PRODUCTION)
@@ -87,12 +86,6 @@ def build_estimator(logits, correct_labels, params):
     else:
         learning_rate = training_params.learning_rate
         
-#    lr_summary = tf.summary.scalar('learning_rate', learning_rate)
-#    TODO: revise to write learning_rate each global step on 
-#   tensorboard, also on console to watch and debug
-#    summary = {"lr_summary" : lr_summary} # g 
-#    summary = {"learning_rate" : lr_summary}
-    
     optimizer = tf.train.AdamOptimizer(learning_rate)    
     with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
         # Ensures that we execute the update_ops before performing the train_step
@@ -114,6 +107,17 @@ def build_estimator(logits, correct_labels, params):
                "iou_op": iou_op, 
                "iou_metric_reset": iou_metric_reset_ops}
     
+    # Summary to display on tensorboard
+    tf.summary.scalar('learning_rate', learning_rate)
+    tf.summary.image(
+            'output/prediction',
+            tf.image.resize_images(
+                    class_to_label_image(prediction_labels, classes_file),
+                    tf.cast(tf.shape(logits)[1:3] / 3, tf.int32)
+                    ),
+            max_outputs=1
+            )
+    
     return predict_op, train_op, loss, metrics, global_step, learning_rate, \
             optimizer
 
@@ -123,7 +127,7 @@ def build_estimator(logits, correct_labels, params):
 
 def train_and_evaluate(sess, input_images, correct_labels, training,
                        predict_op, train_op, loss, metrics, learning_rate,
-                       global_step, summary, params):
+                       global_step, summary, summary_input, params):
     """
     Train, evaluate model, output to console, output to disk for tensorboard
     and save checkpoints for future training and production.
@@ -134,8 +138,6 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     iou_op = metrics["iou_op"]
     iou_metric_reset_ops = metrics["iou_metric_reset"]
     n_epochs = params["training_params"]["n_epochs"]
-    batch_size = params["training_params"]["batch_size"]
-    image_shape = params["image_shape"]
     n_classes = params["model_params"]["n_classes"]
     training_params = TrainingParams.from_dict(params['training_params'])
     model_params = ModelParams(**params['model_params'])
@@ -162,7 +164,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                             batch_size=1,
                             data_augmentation=False,
                             make_patches=False,
-                            image_summaries=False,
+                            image_summaries=True,
                             params=params,
                             num_threads=32)
     
@@ -397,7 +399,7 @@ def run():
     ### DEFINE COMPUTATION GRAPH #####
     ##################################
     # 1. Set up params' values (configuration) from dictionary params
-    image_shape = params["image_shape"]
+#    image_shape = params["image_shape"]
     num_classes = params["model_params"]["n_classes"]
     model_params = ModelParams(**params['model_params'])
 #    training_params = TrainingParams.from_dict(params['training_params'])
@@ -443,44 +445,50 @@ def run():
     # 4. Build summary to display on tensorboard
     loss_val_placeholder = tf.placeholder(tf.float32)
     iou_val_placeholder = tf.placeholder(tf.float32)
-    lr_val_placeholder = tf.placeholder(tf.float32)
+#    lr_val_placeholder = tf.placeholder(tf.float32)
     speed_val_placeholder = tf.placeholder(tf.float32)
-    
-    image_placeholder = \
-        tf.placeholder(tf.float32,
-                       shape=[None, None, None, 3],
-                       name='summary/image')
-    correct_label_placeholder = \
-        tf.placeholder(tf.float32,
-                       shape=[None, None, None, 3],
-                       name='summary/label')
-    prediction_label_placeholder = \
-        tf.placeholder(tf.float32,
-                       shape=[None, None, None, 3],
-                       name='summary/prediction')
+    tf.summary.scalar("loss", loss_val_placeholder)
+    tf.summary.scalar("iou", iou_val_placeholder)
+    tf.summary.scalar("global_step/sec", speed_val_placeholder)
+    summary = tf.summary.merge_all()
+    summary_input = {"loss" : loss_val_placeholder,
+                     "iou" : iou_val_placeholder,
+                     "speed" : speed_val_placeholder}
+#    image_placeholder = \
+#        tf.placeholder(tf.float32,
+#                       shape=[None, None, None, 3],
+#                       name='summary/image')
+#    correct_label_placeholder = \
+#        tf.placeholder(tf.float32,
+#                       shape=[None, None, None, 3],
+#                       name='summary/label')
+#    prediction_label_placeholder = \
+#        tf.placeholder(tf.float32,
+#                       shape=[None, None, None, 3],
+#                       name='summary/prediction')
 
-    summary = {"loss" : loss_val_placeholder,
-               "iou" : iou_val_placeholder,
-               "learning_rate" : lr_val_placeholder,
-               "speed" : speed_val_placeholder,
-               "image" : image_placeholder,
-               "correct_label" : correct_label_placeholder,
-               "prediction_label" : prediction_label_placeholder,
-               "loss_summary": tf.summary.scalar("loss", loss_val_placeholder),
-               "iou_summary": tf.summary.scalar("iou", iou_val_placeholder),
-               "lr_summary": tf.summary.scalar("learning_rate", 
-                                               lr_val_placeholder),
-               "speed_summary": tf.summary.scalar("global_step/sec", 
-                                                    speed_val_placeholder),
-               "image_summary": 
-                   tf.summary.image("input/image", image_placeholder, 1),
-               "label_summary": 
-                   tf.summary.image("input/label", correct_label_placeholder, 
-                                    1),
-               "prediction_summary": 
-                   tf.summary.image("output/prediction", 
-                                    prediction_label_placeholder, 1)
-               }
+#    summary = {"loss" : loss_val_placeholder,
+#               "iou" : iou_val_placeholder,
+#               "learning_rate" : lr_val_placeholder,
+#               "speed" : speed_val_placeholder,
+#               "image" : image_placeholder,
+#               "correct_label" : correct_label_placeholder,
+#               "prediction_label" : prediction_label_placeholder,
+#               "loss_summary": tf.summary.scalar("loss", loss_val_placeholder),
+#               "iou_summary": tf.summary.scalar("iou", iou_val_placeholder),
+#               "lr_summary": tf.summary.scalar("learning_rate", 
+#                                               lr_val_placeholder),
+#               "speed_summary": tf.summary.scalar("global_step/sec", 
+#                                                    speed_val_placeholder),
+#               "image_summary": 
+#                   tf.summary.image("input/image", image_placeholder, 1),
+#               "label_summary": 
+#                   tf.summary.image("input/label", correct_label_placeholder, 
+#                                    1),
+#               "prediction_summary": 
+#                   tf.summary.image("output/prediction", 
+#                                    prediction_label_placeholder, 1)
+#               }
 
     
     ##################################
@@ -513,7 +521,7 @@ def run():
         # TRAIN AND EVALUATE LEARNING MODEL
         train_and_evaluate(sess, input_images, correct_labels, training,
                            predict_op, train_op, loss, metrics, learning_rate,
-                           global_step, summary, params
+                           global_step, summary, summary_input, params
                            )
         
         # TODO: load back the checkpoint that is good for production and

@@ -218,7 +218,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                 summary_input["iou"]: train_iou_val,
                                 summary_input["speed"]: speed_val,
                                 summary_input["shape_summary_img"]: 
-                                    images.shape[1:3]
+                                    [images.shape[1], images.shape[2]]
                                 }
                             )
                 train_writer.add_summary(train_summary_val, global_step_val)
@@ -276,6 +276,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         val_loss /= num_batches
         
         # write summary to disk to display on tensorboard
+        # TODO : fix shape_summary_img
         val_summary_val = \
             sess.run(val_summary,
                      feed_dict={
@@ -286,7 +287,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                 summary_input["loss"]: val_loss,
                                 summary_input["iou"]: val_iou_val,
                                 summary_input["shape_summary_img"]:
-                                    s_images.shape[1:3]
+                                    [s_images.shape[1], s_images.shape[2]]
                                 }
                     )
         val_writer.add_summary(val_summary_val, global_step_val)

@@ -127,7 +127,8 @@ def build_estimator(logits, correct_labels, params):
 
 def train_and_evaluate(sess, input_images, correct_labels, training,
                        predict_op, train_op, loss, metrics, learning_rate,
-                       global_step, summary, summary_input, params):
+                       global_step, summary, speed_summary,
+                       summary_input, params):
     """
     Train, evaluate model, output to console, output to disk for tensorboard
     and save checkpoints for future training and production.
@@ -140,7 +141,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     n_epochs = params["training_params"]["n_epochs"]
     n_classes = params["model_params"]["n_classes"]
     training_params = TrainingParams.from_dict(params['training_params'])
-    model_params = ModelParams(**params['model_params'])
+#    model_params = ModelParams(**params['model_params'])
     
     # SET UP TRAIN DATA, VAL DATA
 #    train_batches_fn = helper.gen_batches_function(
@@ -183,22 +184,23 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         os.makedirs(val_dir)
         
     # Create directories (in disk/memory) for each time running code
-    writer_train = tf.summary.FileWriter(train_dir, graph=sess.graph)
-    writer_val = tf.summary.FileWriter(val_dir)
+    train_writer = tf.summary.FileWriter(train_dir, graph=sess.graph)
+    val_writer = tf.summary.FileWriter(val_dir)
     
     # Train and evaluate loop
     epoch_pbar = tqdm(range(n_epochs)) # to see the progress
     for epoch in epoch_pbar:
         # 1. TRAIN STEP
-        # to calculate mIoU accuracy for each epoch
-        sess.run(iou_metric_reset_ops)
         train_loss = 0.0
         num_batches = 0
         global_step_val = 0
         
+        # create iterator to get images and labels
         next_images, next_labels = train_batches_fn()
         while True:
             try:
+                # to calculate mIoU accuracy for each batch
+                sess.run(iou_metric_reset_ops)
                 images, labels = sess.run([next_images, next_labels])
                 # Convert label (shape [batch_size, height, width]) into
                 # of shape [batch_size, height, width, 3]
@@ -214,73 +216,40 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                              training: True}
                                  )
                 end = time.time()
-                
-                if global_step_val % 10 == 0:
-                    image = np.expand_dims(images[0,:,:,:], axis=0)
-                    
-                    origin_label = labels[0,:,:,:]
-                    origin_label = np.argmax(origin_label, axis=-1)
-                    label = np.zeros((origin_label.shape[0], origin_label.shape[1],
-                                      3), dtype=np.uint8)
-                    label[origin_label == 1] = [255, 0, 0]
-                    label[origin_label == 2] = [0, 255, 0]
-                    label[origin_label == 3] = [0, 0, 255]
-                    label = np.expand_dims(label, axis = 0)
-                    
-                    prediction_label = predict_val["labels"][0,:,:]
-                    prediction = np.zeros((prediction_label.shape[0], 
-                                           prediction_label.shape[1], 3),
-                                            dtype=np.uint8)
-                    prediction[prediction_label == 1] = [255, 0, 0]
-                    prediction[prediction_label == 2] = [0, 255, 0]
-                    prediction[prediction_label == 3] = [0, 0, 255]
-                    prediction = np.expand_dims(prediction, axis = 0)
-                    if params["debug"]:
-                        print("label shape:", label.shape)
-                        print("prediction shape:", prediction.shape)
-                        
-                    image_summary, label_summary, prediction_summary = \
-                        sess.run([summary["image_summary"], 
-                                  summary["label_summary"],
-                                  summary["prediction_summary"]],
-                            feed_dict = {summary["image"]: image,                                        
-                                         summary["correct_label"]: label,
-                                         summary["prediction_label"]: prediction 
-                                             })
-             
-                    writer_train.add_summary(image_summary, global_step_val)
-                    writer_train.add_summary(label_summary, global_step_val)
-                    writer_train.add_summary(prediction_summary, global_step_val)
-                    
+                                    
                 step_per_sec_val = 1.0 / (end - start)
+                train_iou = sess.run(iou)
                 
+                # write summary to disk to display on tensorboard        
+                summary_val = \
+                    sess.run(summary,
+                             feed_dict={summary_input["loss"]: train_loss,
+                                       summary_input["iou"]: train_iou}
+                            )
+                speed_summary_val = \
+                    sess.run(speed_summary, 
+                             feed_dict={
+                                     summary_input["speed"]: step_per_sec_val}
+                             )
+                train_writer.add_summary(summary_val, global_step_val)
+                train_writer.add_summary(speed_summary_val, global_step_val)
+                train_writer.flush()
+                
+                # write result to console
                 epoch_pbar.write(
-                    "Epoch: %03d, global_step: %6d, train_loss: %.4f"
+                    "Epoch: %03d || global_step: %6d || train_loss: %.4f"
                     % (epoch, global_step_val, loss_val)
                     )
+                
                 train_loss += loss_val
                 num_batches += 1
             except tf.errors.OutOfRangeError:
                 break
 
-        train_iou = sess.run(iou)
+        # calculate train_loss over current epoch
         train_loss /= num_batches
-        
-        # write summary to disk to display on tensorboard        
-        loss_summary, iou_summary, lr_summary, speed_summary = \
-            sess.run([summary["loss_summary"], summary["iou_summary"],
-                      summary["lr_summary"], summary["speed_summary"]],
-                     feed_dict={summary["loss"]: train_loss,
-                               summary["iou"]: train_iou,
-                               summary["learning_rate"]: learning_rate_val,
-                               summary["speed"]: step_per_sec_val}
-                    )
-        writer_train.add_summary(loss_summary, global_step_val)
-        writer_train.add_summary(iou_summary, global_step_val)
-        writer_train.add_summary(lr_summary, global_step_val)
-        writer_train.add_summary(speed_summary, global_step_val)
-        writer_train.flush()
- 
+
+
         # 2. EVALUATE STEP
         # to calculate mIoU accuracy for each epoch
         sess.run(iou_metric_reset_ops)  
@@ -299,7 +268,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                        feed_dict= {
                                                input_images: images,
                                                correct_labels: labels,
-                                               training: True
+                                               training: False
                                                }
                                        )
                 val_loss += loss_val
@@ -310,20 +279,21 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         val_loss /= num_batches
         
         # write summary to disk to display on tensorboard
-        loss_summary, iou_summary = \
-            sess.run([summary["loss_summary"], summary["iou_summary"]],
-                     feed_dict={summary["loss"]: val_loss,
-                                summary["iou"]: val_iou}
+        summary_val = \
+            sess.run(summary_val,
+                     feed_dict={summary_input["loss"]: val_loss,
+                                summary_input["iou"]: val_iou}
                     )
-        writer_val.add_summary(loss_summary, global_step_val)
-        writer_val.add_summary(iou_summary, global_step_val)
-        writer_val.flush()
+        val_writer.add_summary(summary_val, global_step_val)
+        val_writer.flush()
         
         # output to console
         epoch_pbar.write(
-            "Epoch %03d: loss: %.4f mIoU: %.4f val_loss: %.4f val_mIoU: %.4f"
+            "Epoch %03d | train_loss: %.4f | train_mIoU: %.4f | " +
+            "val_loss: %.4f | val_mIoU: %.4f"
             % (epoch, train_loss, train_iou, val_loss, val_iou)
             )
+        
         # TODO SAVE CHECKPOINT: save latest or highest val meanIoU?
         # -- save both
 
@@ -391,10 +361,10 @@ def run():
                     },
             "image_shape" : [896, 576],
             "learning_rate_val" : 0.001,
-            "debug" : True,
+            "debug" : False,
             
             }
-    
+    debug = params["debug"]
     ##################################
     ### DEFINE COMPUTATION GRAPH #####
     ##################################
@@ -407,13 +377,6 @@ def run():
 #    training_params = params['training_params']
     
     # 2. Create input tensor for computation graphs
-#    input_images = tf.placeholder(
-#        tf.float32,
-#        shape=[None, image_shape[0], image_shape[1], 3])
-#    correct_labels = tf.placeholder(
-#        tf.float32,
-#        shape=[None, image_shape[0], image_shape[1], num_classes],
-#        name='correct_labels')
     input_images = tf.placeholder(tf.float32, shape=[None, None, None, 3])
     correct_labels = tf.placeholder(tf.float32, 
                                     shape=[None, None, None, num_classes],
@@ -434,10 +397,11 @@ def run():
     pretrained_restorer = \
                 tf.train.Saver(var_list= [v for v in tf.global_variables()
                                             if key_restore_model in v.name])
-    with open("resnet_v1_50_vars_before.txt", "w") as var_file:
-        for v in tf.global_variables():      
-            if key_restore_model in v.name:
-                var_file.write("{}\n".format(v.name))
+    if debug:
+        with open("resnet_v1_50_vars_before.txt", "w") as var_file:
+            for v in tf.global_variables():      
+                if key_restore_model in v.name:
+                    var_file.write("{}\n".format(v.name))
                 
     predict_op, train_op, loss, metrics, global_step, learning_rate, \
         optimizer = build_estimator(logits, correct_labels, params)
@@ -449,47 +413,13 @@ def run():
     speed_val_placeholder = tf.placeholder(tf.float32)
     tf.summary.scalar("loss", loss_val_placeholder)
     tf.summary.scalar("iou", iou_val_placeholder)
-    tf.summary.scalar("global_step/sec", speed_val_placeholder)
+    
     summary = tf.summary.merge_all()
+    speed_summary = tf.summary.scalar("speed:global_step/sec", speed_val_placeholder)
     summary_input = {"loss" : loss_val_placeholder,
                      "iou" : iou_val_placeholder,
-                     "speed" : speed_val_placeholder}
-#    image_placeholder = \
-#        tf.placeholder(tf.float32,
-#                       shape=[None, None, None, 3],
-#                       name='summary/image')
-#    correct_label_placeholder = \
-#        tf.placeholder(tf.float32,
-#                       shape=[None, None, None, 3],
-#                       name='summary/label')
-#    prediction_label_placeholder = \
-#        tf.placeholder(tf.float32,
-#                       shape=[None, None, None, 3],
-#                       name='summary/prediction')
-
-#    summary = {"loss" : loss_val_placeholder,
-#               "iou" : iou_val_placeholder,
-#               "learning_rate" : lr_val_placeholder,
-#               "speed" : speed_val_placeholder,
-#               "image" : image_placeholder,
-#               "correct_label" : correct_label_placeholder,
-#               "prediction_label" : prediction_label_placeholder,
-#               "loss_summary": tf.summary.scalar("loss", loss_val_placeholder),
-#               "iou_summary": tf.summary.scalar("iou", iou_val_placeholder),
-#               "lr_summary": tf.summary.scalar("learning_rate", 
-#                                               lr_val_placeholder),
-#               "speed_summary": tf.summary.scalar("global_step/sec", 
-#                                                    speed_val_placeholder),
-#               "image_summary": 
-#                   tf.summary.image("input/image", image_placeholder, 1),
-#               "label_summary": 
-#                   tf.summary.image("input/label", correct_label_placeholder, 
-#                                    1),
-#               "prediction_summary": 
-#                   tf.summary.image("output/prediction", 
-#                                    prediction_label_placeholder, 1)
-#               }
-
+                     "speed" : speed_val_placeholder
+                     }
     
     ##################################
     ### CREATE AND RUN SESSION #######
@@ -502,27 +432,25 @@ def run():
         sess.run(tf.local_variables_initializer())
         
         # LOAD PRETRAINED WEIGHTS INTO GRAPH OPS BELONGING TO RESNET BASE MODEL
-              
-        with open("global_vars.txt", "w") as var_file:
-            for v in tf.global_variables():
-                var_file.write("{}\n".format(v.name))
-                
-        with open("resnet_v1_50_vars_after.txt", "w") as var_file:
-            for v in tf.global_variables():      
-                if key_restore_model in v.name:
+        if debug:      
+            with open("global_vars.txt", "w") as var_file:
+                for v in tf.global_variables():
                     var_file.write("{}\n".format(v.name))
-#        with open("optimizer_vars.txt", "w") as var_file:
-#            for v in tf.global_variables(optimizer.variables()):
-#                var_file.write("{}\n".format(v.name))
+                    
+            with open("resnet_v1_50_vars_after.txt", "w") as var_file:
+                for v in tf.global_variables():      
+                    if key_restore_model in v.name:
+                        var_file.write("{}\n".format(v.name))
+
                 
         pretrained_restorer.restore(sess, model_params.pretrained_model_file)
         
         
         # TRAIN AND EVALUATE LEARNING MODEL
         train_and_evaluate(sess, input_images, correct_labels, training,
-                           predict_op, train_op, loss, metrics, learning_rate,
-                           global_step, summary, summary_input, params
-                           )
+                       predict_op, train_op, loss, metrics, learning_rate,
+                       global_step, summary, speed_summary,
+                       summary_input, params)
         
         # TODO: load back the checkpoint that is good for production and
         # export it as a savedmodel for production -- separate file

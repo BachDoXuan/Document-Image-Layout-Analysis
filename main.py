@@ -216,7 +216,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                     learning_rate_val,
                                 summary_input["loss"]: loss_val,
                                 summary_input["iou"]: train_iou_val,
-                                summary_input["speed"]: speed_val
+                                summary_input["speed"]: speed_val,
+                                summary_input["shape_summary_img"]: 
+                                    images.shape[1:3]
                                 }
                             )
                 train_writer.add_summary(train_summary_val, global_step_val)
@@ -282,7 +284,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                 summary_input["prediction_labels"]: 
                                     s_predictions,
                                 summary_input["loss"]: val_loss,
-                                summary_input["iou"]: val_iou_val
+                                summary_input["iou"]: val_iou_val,
+                                summary_input["shape_summary_img"]:
+                                    s_images.shape[1:3]
                                 }
                     )
         val_writer.add_summary(val_summary_val, global_step_val)
@@ -423,7 +427,7 @@ def run():
     s_iou = tf.placeholder(tf.float32)
     s_speed = tf.placeholder(tf.float32)
     
-    shape_summary_img = tf.cast(tf.shape(s_images[1:3] / 3, tf.int32))
+    shape_summary_img = tf.placeholder(tf.int32, shape = [3])
     s_image_output = \
         tf.summary.image(
                         'input/image',
@@ -461,7 +465,8 @@ def run():
                      "learning_rate": s_learning_rate,
                      "loss": s_loss,
                      "iou": s_iou,
-                     "speed": s_speed
+                     "speed": s_speed,
+                     "shape_summary_img": shape_summary_img
                      }
     
     ##################################

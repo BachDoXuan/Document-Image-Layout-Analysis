@@ -106,18 +106,6 @@ def build_estimator(logits, correct_labels, params):
     metrics = {"iou": iou, 
                "iou_op": iou_op, 
                "iou_metric_reset": iou_metric_reset_ops}
-    
-    # Summary to display on tensorboard
-    tf.summary.scalar('learning_rate', learning_rate)
-    tf.summary.image(
-            'output/prediction',
-            tf.image.resize_images(
-                    class_to_label_image(prediction_labels, classes_file),
-                    tf.cast(tf.shape(logits)[1:3] / 3, tf.int32)
-                    ),
-            max_outputs=1
-            )
-    
     return predict_op, train_op, loss, metrics, global_step, learning_rate, \
             optimizer
 
@@ -127,7 +115,7 @@ def build_estimator(logits, correct_labels, params):
 
 def train_and_evaluate(sess, input_images, correct_labels, training,
                        predict_op, train_op, loss, metrics, learning_rate,
-                       global_step, summary, speed_summary,
+                       global_step, train_summary, val_summary,
                        summary_input, params):
     """
     Train, evaluate model, output to console, output to disk for tensorboard
@@ -144,11 +132,6 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
 #    model_params = ModelParams(**params['model_params'])
     
     # SET UP TRAIN DATA, VAL DATA
-#    train_batches_fn = helper.gen_batches_function(
-#            params["train_data"], image_shape, n_classes, 
-#            augmentation_fn = augmentation_fn)
-#    val_batches_fn = helper.gen_batches_function(
-#            params["eval_data"], image_shape, n_classes)
     train_batches_fn = input_helper.input_fn(
                             input_data = os.path.join(params["train_data"], "images"),
                             input_label_dir = os.path.join(params["train_data"], "labels"),
@@ -202,6 +185,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 # to calculate mIoU accuracy for each batch
                 sess.run(iou_metric_reset_ops)
                 images, labels = sess.run([next_images, next_labels])
+                
                 # Convert label (shape [batch_size, height, width]) into
                 # of shape [batch_size, height, width, 3]
                 class_eye = np.eye(n_classes, dtype = np.uint8)
@@ -217,28 +201,32 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                  )
                 end = time.time()
                                     
-                step_per_sec_val = 1.0 / (end - start)
-                train_iou = sess.run(iou)
+                speed_val = 1.0 / (end - start)
+                train_iou_val = sess.run(iou)
                 
                 # write summary to disk to display on tensorboard        
-                summary_val = \
-                    sess.run(summary,
-                             feed_dict={summary_input["loss"]: train_loss,
-                                       summary_input["iou"]: train_iou}
-                            )
-                speed_summary_val = \
-                    sess.run(speed_summary, 
+                train_summary_val = \
+                    sess.run(train_summary,
                              feed_dict={
-                                     summary_input["speed"]: step_per_sec_val}
-                             )
-                train_writer.add_summary(summary_val, global_step_val)
-                train_writer.add_summary(speed_summary_val, global_step_val)
+                                summary_input["images"]: images,
+                                summary_input["correct_labels"]: labels,
+                                summary_input["prediction_labels"]: 
+                                    predict_val["labels"],
+                                summary_input["learning_rate"]: 
+                                    learning_rate_val,
+                                summary_input["loss"]: loss_val,
+                                summary_input["iou"]: train_iou_val,
+                                summary_input["speed"]: speed_val
+                                }
+                            )
+                train_writer.add_summary(train_summary_val, global_step_val)
                 train_writer.flush()
                 
                 # write result to console
                 epoch_pbar.write(
-                    "Epoch: %03d || global_step: %6d || train_loss: %.4f"
-                    % (epoch, global_step_val, loss_val)
+                    "Epoch: %03d | global_step: %6d | train_loss: %.4f |" +
+                    "train_iou: %.4f"
+                    % (epoch, global_step_val, loss_val, train_iou_val)
                     )
                 
                 train_loss += loss_val
@@ -255,6 +243,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         sess.run(iou_metric_reset_ops)  
         val_loss = 0.0
         num_batches = 0
+        has_s_image = False # for image summary
         next_images, next_labels = val_batches_fn()
         while True:
             try:
@@ -264,34 +253,46 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 class_eye = np.eye(n_classes, dtype = np.uint8)
                 labels = class_eye[labels, :]
                 
-                loss_val, _ = sess.run([loss, iou_op], 
-                                       feed_dict= {
-                                               input_images: images,
-                                               correct_labels: labels,
-                                               training: False
-                                               }
-                                       )
+                predict_val, loss_val, _ = \
+                        sess.run([predict_op, loss, iou_op], 
+                                 feed_dict= {
+                                       input_images: images,
+                                       correct_labels: labels,
+                                       training: False
+                                       }
+                                 )
+                        
+                if not has_s_image:
+                    s_images = images
+                    s_labels = labels
+                    s_predictions = predict_val["labels"]
                 val_loss += loss_val
                 num_batches += 1
             except tf.errors.OutOfRangeError:
                 break
-        val_iou = sess.run(iou)
+        val_iou_val = sess.run(iou)
         val_loss /= num_batches
         
         # write summary to disk to display on tensorboard
-        summary_val = \
-            sess.run(summary_val,
-                     feed_dict={summary_input["loss"]: val_loss,
-                                summary_input["iou"]: val_iou}
+        val_summary_val = \
+            sess.run(val_summary,
+                     feed_dict={
+                                summary_input["images"]: s_images,
+                                summary_input["correct_labels"]: s_labels,
+                                summary_input["prediction_labels"]: 
+                                    s_predictions,
+                                summary_input["loss"]: val_loss,
+                                summary_input["iou"]: val_iou_val
+                                }
                     )
-        val_writer.add_summary(summary_val, global_step_val)
+        val_writer.add_summary(val_summary_val, global_step_val)
         val_writer.flush()
         
-        # output to console
+        # output to console for current epoch
         epoch_pbar.write(
-            "Epoch %03d | train_loss: %.4f | train_mIoU: %.4f | " +
+            "Epoch %03d | train_loss: %.4f |" +
             "val_loss: %.4f | val_mIoU: %.4f"
-            % (epoch, train_loss, train_iou, val_loss, val_iou)
+            % (epoch, train_loss, val_loss, val_iou_val)
             )
         
         # TODO SAVE CHECKPOINT: save latest or highest val meanIoU?
@@ -375,6 +376,7 @@ def run():
 #    training_params = TrainingParams.from_dict(params['training_params'])
 #    model_params = params['model_params']
 #    training_params = params['training_params']
+    classes_file = params["classes_file"]
     
     # 2. Create input tensor for computation graphs
     input_images = tf.placeholder(tf.float32, shape=[None, None, None, 3])
@@ -407,18 +409,59 @@ def run():
         optimizer = build_estimator(logits, correct_labels, params)
     
     # 4. Build summary to display on tensorboard
-    loss_val_placeholder = tf.placeholder(tf.float32)
-    iou_val_placeholder = tf.placeholder(tf.float32)
-#    lr_val_placeholder = tf.placeholder(tf.float32)
-    speed_val_placeholder = tf.placeholder(tf.float32)
-    tf.summary.scalar("loss", loss_val_placeholder)
-    tf.summary.scalar("iou", iou_val_placeholder)
+    #   Tensorboard: works like a web-server, use data from summary to display
+    s_images = tf.placeholder(tf.float32, shape=[None, None, None, None],
+                              name = "summary_images")
+    s_correct_labels = \
+        tf.placeholder(tf.float32, shape=[None, None, None, None],
+                       name = "summary_correct_labels")
+    s_prediction_labels = \
+        tf.placeholder(tf.float32, shape=[None, None, None, None],
+                       name = "summary_prediction_labels")
+    s_learning_rate = tf.placeholder(tf.float32)
+    s_loss = tf.placeholder(tf.float32)
+    s_iou = tf.placeholder(tf.float32)
+    s_speed = tf.placeholder(tf.float32)
     
-    summary = tf.summary.merge_all()
-    speed_summary = tf.summary.scalar("speed:global_step/sec", speed_val_placeholder)
-    summary_input = {"loss" : loss_val_placeholder,
-                     "iou" : iou_val_placeholder,
-                     "speed" : speed_val_placeholder
+    shape_summary_img = tf.cast(tf.shape(s_images[1:3] / 3, tf.int32))
+    s_image_output = \
+        tf.summary.image(
+                        'input/image',
+                        tf.image.resize_images(s_images, shape_summary_img),
+                        max_outputs=1)   
+    s_label_output = \
+        tf.summary.image(
+                        'output/label',
+                        tf.image.resize_images(
+                            class_to_label_image(s_correct_labels, classes_file),
+                            tf.cast(shape_summary_img, tf.int32)),
+                        max_outputs=1)
+    s_prediction_output = \
+        tf.summary.image(
+                'output/prediction',
+                tf.image.resize_images(
+                    class_to_label_image(s_prediction_labels, classes_file),
+                    tf.cast(shape_summary_img, tf.int32)),
+                max_outputs=1)
+
+    s_learning_rate_output = \
+        tf.summary.scalar("learning_rate", s_learning_rate)
+    s_loss_output = tf.summary.scalar("loss", s_loss)
+    s_iou_output = tf.summary.scalar("meanIoU", s_iou)
+    s_speed_output = tf.summary.scalar("speed:batch_step_per_sec", s_speed)
+    
+    train_summary = [s_image_output, s_label_output, s_prediction_output,
+                      s_learning_rate_output, s_loss_output, s_iou_output,
+                      s_speed_output]
+    val_summary = [s_image_output, s_label_output, s_prediction_output,
+                   s_loss_output, s_iou_output]
+    summary_input = {"images": s_images,
+                     "correct_labels": s_correct_labels,
+                     "prediction_labels": s_prediction_labels,
+                     "learning_rate": s_learning_rate,
+                     "loss": s_loss,
+                     "iou": s_iou,
+                     "speed": s_speed
                      }
     
     ##################################
@@ -450,7 +493,7 @@ def run():
         train_and_evaluate(
                 sess, input_images, correct_labels, training,
                 predict_op, train_op, loss, metrics, learning_rate,
-                global_step, summary, speed_summary, summary_input, params
+                global_step, train_summary, val_summary, summary_input, params
                 )
         
         # TODO: load back the checkpoint that is good for production and

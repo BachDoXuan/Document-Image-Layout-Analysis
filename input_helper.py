@@ -234,25 +234,25 @@ def input_fn(input_data: Union[str, List[str]], params: dict,
         prepared_batch = dataset.make_one_shot_iterator().get_next()
 
         # Summaries for checking that the loading and data augmentation goes fine
-        if image_summaries:
-            shape_summary_img = tf.cast(tf.shape(prepared_batch['images'])[1:3] / 3, tf.int32)
-            tf.summary.image('input/image',
-                             tf.image.resize_images(prepared_batch['images'], shape_summary_img),
-                             max_outputs=1)
-            if 'labels' in prepared_batch:
-                label_export = prepared_batch['labels']
-                if prediction_type == utils.PredictionType.CLASSIFICATION:
-                    label_export = utils.class_to_label_image(label_export, classes_file)
-                if prediction_type == utils.PredictionType.MULTILABEL:
-                    label_export = tf.cast(label_export, tf.int32)
-                    label_export = utils.multiclass_to_label_image(label_export, classes_file)
-                tf.summary.image('input/label',
-                                 tf.image.resize_images(label_export, shape_summary_img), max_outputs=1)
-            if 'weight_maps' in prepared_batch:
-                tf.summary.image('input/weight_map',
-                                 tf.image.resize_images(prepared_batch['weight_maps'][:, :, :, None],
-                                                        shape_summary_img),
-                                 max_outputs=1)
+#        if image_summaries:
+#            shape_summary_img = tf.cast(tf.shape(prepared_batch['images'])[1:3] / 3, tf.int32)
+#            tf.summary.image('input/image',
+#                             tf.image.resize_images(prepared_batch['images'], shape_summary_img),
+#                             max_outputs=1)
+#            if 'labels' in prepared_batch:
+#                label_export = prepared_batch['labels']
+#                if prediction_type == utils.PredictionType.CLASSIFICATION:
+#                    label_export = utils.class_to_label_image(label_export, classes_file)
+#                if prediction_type == utils.PredictionType.MULTILABEL:
+#                    label_export = tf.cast(label_export, tf.int32)
+#                    label_export = utils.multiclass_to_label_image(label_export, classes_file)
+#                tf.summary.image('input/label',
+#                                 tf.image.resize_images(label_export, shape_summary_img), max_outputs=1)
+#            if 'weight_maps' in prepared_batch:
+#                tf.summary.image('input/weight_map',
+#                                 tf.image.resize_images(prepared_batch['weight_maps'][:, :, :, None],
+#                                                        shape_summary_img),
+#                                 max_outputs=1)
 
         return prepared_batch.get('images'), prepared_batch.get('labels')
 

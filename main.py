@@ -427,7 +427,7 @@ def run():
     s_iou = tf.placeholder(tf.float32)
     s_speed = tf.placeholder(tf.float32)
     
-    shape_summary_img = tf.placeholder(tf.int32, shape = [3])
+    shape_summary_img = tf.placeholder(tf.int32, shape = [2])
     s_image_output = \
         tf.summary.image(
                         'input/image',

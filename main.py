@@ -447,10 +447,11 @@ def run():
         
         
         # TRAIN AND EVALUATE LEARNING MODEL
-        train_and_evaluate(sess, input_images, correct_labels, training,
-                       predict_op, train_op, loss, metrics, learning_rate,
-                       global_step, summary, speed_summary,
-                       summary_input, params)
+        train_and_evaluate(
+                sess, input_images, correct_labels, training,
+                predict_op, train_op, loss, metrics, learning_rate,
+                global_step, summary, speed_summary, summary_input, params
+                )
         
         # TODO: load back the checkpoint that is good for production and
         # export it as a savedmodel for production -- separate file

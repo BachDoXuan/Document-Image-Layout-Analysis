@@ -438,14 +438,14 @@ def run():
                         'output/label',
                         tf.image.resize_images(
                             class_to_label_image(s_correct_labels, classes_file),
-                            tf.cast(shape_summary_img, tf.int32)),
+                            shape_summary_img),
                         max_outputs=1)
     s_prediction_output = \
         tf.summary.image(
                 'output/prediction',
                 tf.image.resize_images(
                     class_to_label_image(s_prediction_labels, classes_file),
-                    tf.cast(shape_summary_img, tf.int32)),
+                    shape_summary_img),
                 max_outputs=1)
 
     s_learning_rate_output = \

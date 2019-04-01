@@ -238,7 +238,8 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                 summary_input["speed"]: speed_val
                                 }
                             )
-                train_writer.add_summary(train_summary_val, global_step_val)
+                for summary_val in train_summary_val:
+                    train_writer.add_summary(summary_val, global_step_val)
                 train_writer.flush()
                 
                 # write result to console
@@ -319,7 +320,8 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                 summary_input["iou"]: val_iou_val
                                 }
                     )
-        val_writer.add_summary(val_summary_val, global_step_val)
+        for summary_val in val_summary_val:
+            val_writer.add_summary(summary_val, global_step_val)
         val_writer.flush()
         
         # output to console for current epoch

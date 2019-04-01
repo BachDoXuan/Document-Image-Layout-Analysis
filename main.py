@@ -244,8 +244,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 
                 # write result to console
                 epoch_pbar.write(
-                    "Epoch: %03d | global_step: %6d | train_loss: %.4f |" +
-                    "train_iou: %.4f"
+                    "Epoch: %03d | global_step: %6d | train_loss: %.4f | train_iou: %.4f"
                     % (epoch, global_step_val, loss_val, train_iou_val)
                     )
                 
@@ -326,8 +325,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         
         # output to console for current epoch
         epoch_pbar.write(
-            "Epoch %03d | train_loss: %.4f |" +
-            "val_loss: %.4f | val_mIoU: %.4f"
+            "Epoch %03d | train_loss: %.4f | val_loss: %.4f | val_mIoU: %.4f"
             % (epoch, train_loss, val_loss, val_iou_val)
             )
         

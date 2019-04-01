@@ -129,7 +129,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     n_epochs = params["training_params"]["n_epochs"]
     n_classes = params["model_params"]["n_classes"]
     training_params = TrainingParams.from_dict(params['training_params'])
-#    classes_file = params["classes_file"]
+    classes_file = params["classes_file"]
 #    model_params = ModelParams(**params['model_params'])
     
     # SET UP TRAIN DATA, VAL DATA
@@ -205,14 +205,32 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 speed_val = 1.0 / (end - start)
                 train_iou_val = sess.run(iou)
                 
-                # write summary to disk to display on tensorboard          
+                # write summary to disk to display on tensorboard   
+                s_image_shape = tf.cast(tf.shape(images)[1:3] / 3, tf.int32)
+                           
+                s_images = tf.image.resize_images(images, s_image_shape)
+                s_correct_labels = \
+                    tf.image.resize_images(
+                        class_to_label_image(labels, classes_file),
+                        s_image_shape
+                        )
+                s_prediction_labels = \
+                    tf.image.resize_images(
+                        class_to_label_image(predict_val["labels"],
+                                                         classes_file),
+                                    s_image_shape
+                                    )
+                s_images_val, s_correct_labels_val, s_prediction_labels_val = \
+                    sess.run([s_images, s_correct_labels, s_prediction_labels])
+                    
                 train_summary_val = \
                     sess.run(train_summary,
                              feed_dict={
-                                summary_input["images"]: images,
-                                summary_input["correct_labels"]: labels,
+                                summary_input["images"]: s_images_val,
+                                summary_input["correct_labels"]: 
+                                    s_correct_labels_val,
                                 summary_input["prediction_labels"]: 
-                                    predict_val["labels"],
+                                    s_prediction_labels_val,
                                 summary_input["learning_rate"]: 
                                     learning_rate_val,
                                 summary_input["loss"]: loss_val,
@@ -264,9 +282,9 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                  )
                         
                 if not has_s_image:
-                    s_images = images
-                    s_labels = labels
-                    s_predictions = predict_val["labels"]
+                    s_images_input = images
+                    s_labels_input = labels
+                    s_predictions_input = predict_val["labels"]
                 val_loss += loss_val
                 num_batches += 1
             except tf.errors.OutOfRangeError:
@@ -275,14 +293,28 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
         val_loss /= num_batches
         
         # write summary to disk to display on tensorboard
-        # TODO : fix shape_summary_img
+        s_image_shape = tf.cast(tf.shape(s_images_input)[1:3] / 3, tf.int32)
+                   
+        s_images = tf.image.resize_images(s_images_input, s_image_shape)
+        s_correct_labels = \
+            tf.image.resize_images(
+                class_to_label_image(s_labels_input, classes_file),
+                s_image_shape)
+        s_prediction_labels = \
+            tf.image.resize_images(
+                class_to_label_image(s_predictions_input, classes_file),
+                s_image_shape)
+        s_images_val, s_correct_labels_val, s_prediction_labels_val = \
+            sess.run([s_images, s_correct_labels, s_prediction_labels])
+        
         val_summary_val = \
             sess.run(val_summary,
                      feed_dict={
-                                summary_input["images"]: s_images,
-                                summary_input["correct_labels"]: s_labels,
+                                summary_input["images"]: s_images_val,
+                                summary_input["correct_labels"]: 
+                                    s_correct_labels_val,
                                 summary_input["prediction_labels"]: 
-                                    s_predictions,
+                                    s_prediction_labels_val,
                                 summary_input["loss"]: val_loss,
                                 summary_input["iou"]: val_iou_val
                                 }
@@ -378,7 +410,7 @@ def run():
 #    training_params = TrainingParams.from_dict(params['training_params'])
 #    model_params = params['model_params']
 #    training_params = params['training_params']
-    classes_file = params["classes_file"]
+#    classes_file = params["classes_file"]
     
     # 2. Create input tensor for computation graphs
     input_images = tf.placeholder(tf.float32, shape=[None, None, None, 3])
@@ -415,40 +447,23 @@ def run():
     s_images = tf.placeholder(tf.float32, shape=[None, None, None, 3],
                               name = "summary_images")
     s_correct_labels = \
-        tf.placeholder(tf.float32, shape=[None, None, None, 3],
+        tf.placeholder(tf.float32, shape=[None, None, None, None],
                        name = "summary_correct_labels")
     s_prediction_labels = \
-        tf.placeholder(tf.float32, shape=[None, None, None, 3],
+        tf.placeholder(tf.float32, shape=[None, None, None, None],
                        name = "summary_prediction_labels")
     s_learning_rate = tf.placeholder(tf.float32)
     s_loss = tf.placeholder(tf.float32)
     s_iou = tf.placeholder(tf.float32)
     s_speed = tf.placeholder(tf.float32)
     
-    s_image_shape = tf.cast(tf.shape(s_images)[1:3] / 3, tf.int32)
-               
     s_image_output = \
-        tf.summary.image(
-                'input/image',
-                tf.image.resize_images(s_images, s_image_shape),
-                max_outputs=1)   
+        tf.summary.image('input/image', s_images, max_outputs=1)
     s_label_output = \
-        tf.summary.image(
-                'output/label',
-                tf.image.resize_images(
-                        class_to_label_image(s_correct_labels, classes_file),
-                        s_image_shape
-                        ),
-                max_outputs=1)
+        tf.summary.image('output/label', s_correct_labels, max_outputs=1)
     s_prediction_output = \
-        tf.summary.image(
-                'output/prediction',
-                tf.image.resize_images(
-                        class_to_label_image(s_prediction_labels,
-                                             classes_file),
-                        s_image_shape
-                        ),
-                max_outputs=1)
+        tf.summary.image('output/prediction', s_prediction_labels, 
+                         max_outputs=1)
 
     s_learning_rate_output = \
         tf.summary.scalar("learning_rate", s_learning_rate)

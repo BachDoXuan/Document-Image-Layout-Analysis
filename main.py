@@ -3,7 +3,7 @@ import os
 #import shutil
 import tensorflow as tf
 #from keras import backend as K
-import helper
+#import helper
 import warnings
 from distutils.version import LooseVersion
 #from seg_mobilenet import SegMobileNet
@@ -46,7 +46,7 @@ def build_estimator(logits, correct_labels, params):
     # EXTRACT PARAMS 
     model_params = ModelParams(**params['model_params'])
     training_params = TrainingParams.from_dict(params['training_params'])
-    classes_file = params['classes_file']  
+#    classes_file = params['classes_file']  
     
     # BUILD PREDICTION OP 
     #   (FOR PREDICTION PHASE AND INFERENCE PHASE - REAL PRODUCTION)
@@ -129,6 +129,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     n_epochs = params["training_params"]["n_epochs"]
     n_classes = params["model_params"]["n_classes"]
     training_params = TrainingParams.from_dict(params['training_params'])
+#    classes_file = params["classes_file"]
 #    model_params = ModelParams(**params['model_params'])
     
     # SET UP TRAIN DATA, VAL DATA
@@ -155,7 +156,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
     # Create writers for training step and evaluation step
     # Write time stamp into log directory
     now = datetime.now()
-    datetime_str = now.strftime("%Y_%m_%d_%H_%M_%S")
+    datetime_str = now.strftime("Date_%Y_%m_%d_Time_%H_%M_%S")
     output_dir = "./logs/" + datetime_str
     train_dir = output_dir + "/train"
     val_dir = output_dir + "/val"
@@ -189,14 +190,14 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 # Convert label (shape [batch_size, height, width]) into
                 # of shape [batch_size, height, width, 3]
                 class_eye = np.eye(n_classes, dtype = np.uint8)
-                labels = class_eye[labels, :]
+                one_hot_labels = class_eye[labels, :]
                 
                 start = time.time()
                 predict_val, loss_val, global_step_val, learning_rate_val, _, _ = \
                         sess.run([predict_op, loss, global_step, learning_rate, 
                                   train_op, iou_op], 
                                  feed_dict= {input_images: images,
-                                             correct_labels: labels,
+                                             correct_labels: one_hot_labels,
                                              training: True}
                                  )
                 end = time.time()
@@ -204,7 +205,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 speed_val = 1.0 / (end - start)
                 train_iou_val = sess.run(iou)
                 
-                # write summary to disk to display on tensorboard        
+                # write summary to disk to display on tensorboard          
                 train_summary_val = \
                     sess.run(train_summary,
                              feed_dict={
@@ -216,9 +217,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                     learning_rate_val,
                                 summary_input["loss"]: loss_val,
                                 summary_input["iou"]: train_iou_val,
-                                summary_input["speed"]: speed_val,
-                                summary_input["shape_summary_img"]: 
-                                    [images.shape[1], images.shape[2]]
+                                summary_input["speed"]: speed_val
                                 }
                             )
                 train_writer.add_summary(train_summary_val, global_step_val)
@@ -253,13 +252,13 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                 # Convert label (shape [batch_size, height, width]) into
                 # of shape [batch_size, height, width, 3]
                 class_eye = np.eye(n_classes, dtype = np.uint8)
-                labels = class_eye[labels, :]
+                one_hot_labels = class_eye[labels, :]
                 
                 predict_val, loss_val, _ = \
                         sess.run([predict_op, loss, iou_op], 
                                  feed_dict= {
                                        input_images: images,
-                                       correct_labels: labels,
+                                       correct_labels: one_hot_labels,
                                        training: False
                                        }
                                  )
@@ -285,9 +284,7 @@ def train_and_evaluate(sess, input_images, correct_labels, training,
                                 summary_input["prediction_labels"]: 
                                     s_predictions,
                                 summary_input["loss"]: val_loss,
-                                summary_input["iou"]: val_iou_val,
-                                summary_input["shape_summary_img"]:
-                                    [s_images.shape[1], s_images.shape[2]]
+                                summary_input["iou"]: val_iou_val
                                 }
                     )
         val_writer.add_summary(val_summary_val, global_step_val)
@@ -415,38 +412,42 @@ def run():
     
     # 4. Build summary to display on tensorboard
     #   Tensorboard: works like a web-server, use data from summary to display
-    s_images = tf.placeholder(tf.float32, shape=[None, None, None, None],
+    s_images = tf.placeholder(tf.float32, shape=[None, None, None, 3],
                               name = "summary_images")
     s_correct_labels = \
-        tf.placeholder(tf.float32, shape=[None, None, None, None],
+        tf.placeholder(tf.float32, shape=[None, None, None, 3],
                        name = "summary_correct_labels")
     s_prediction_labels = \
-        tf.placeholder(tf.float32, shape=[None, None, None, None],
+        tf.placeholder(tf.float32, shape=[None, None, None, 3],
                        name = "summary_prediction_labels")
     s_learning_rate = tf.placeholder(tf.float32)
     s_loss = tf.placeholder(tf.float32)
     s_iou = tf.placeholder(tf.float32)
     s_speed = tf.placeholder(tf.float32)
     
-    shape_summary_img = tf.placeholder(tf.int32, shape = [2])
+    s_image_shape = tf.cast(tf.shape(s_images)[1:3] / 3, tf.int32)
+               
     s_image_output = \
         tf.summary.image(
-                        'input/image',
-                        tf.image.resize_images(s_images, shape_summary_img),
-                        max_outputs=1)   
+                'input/image',
+                tf.image.resize_images(s_images, s_image_shape),
+                max_outputs=1)   
     s_label_output = \
         tf.summary.image(
-                        'output/label',
-                        tf.image.resize_images(
-                            class_to_label_image(s_correct_labels, classes_file),
-                            shape_summary_img),
-                        max_outputs=1)
+                'output/label',
+                tf.image.resize_images(
+                        class_to_label_image(s_correct_labels, classes_file),
+                        s_image_shape
+                        ),
+                max_outputs=1)
     s_prediction_output = \
         tf.summary.image(
                 'output/prediction',
                 tf.image.resize_images(
-                    class_to_label_image(s_prediction_labels, classes_file),
-                    shape_summary_img),
+                        class_to_label_image(s_prediction_labels,
+                                             classes_file),
+                        s_image_shape
+                        ),
                 max_outputs=1)
 
     s_learning_rate_output = \
@@ -466,8 +467,7 @@ def run():
                      "learning_rate": s_learning_rate,
                      "loss": s_loss,
                      "iou": s_iou,
-                     "speed": s_speed,
-                     "shape_summary_img": shape_summary_img
+                     "speed": s_speed
                      }
     
     ##################################
